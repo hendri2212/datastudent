@@ -19,10 +19,7 @@ Aplikasi ini digunakan untuk mengelola dan menampilkan data siswa secara lengkap
   - *Fitur Dokumen*: Untuk dokumen hasil scan, tersedia fitur **download** (unduh) dan **share** (bagikan) langsung ke sosial media.
   - *Penyimpanan Aman*: File hasil scan disimpan secara aman di **storage private Laravel** (bukan public) guna melindungi privasi dan keamanan data dokumen resmi siswa.
 
-
 - **Verifikasi & Keamanan Data (Kunci Data)**:
   Data yang bersifat statis atau tidak mudah berubah (seperti nama, tanggal lahir, riwayat pendidikan, dll.) akan otomatis **dikunci setelah diverifikasi oleh Wali Kelas**. 
   - Setelah dikunci, siswa hanya dapat memperbarui data yang sifatnya dinamis/mudah berubah (seperti nomor handphone, akun sosial media, dll.).
   - *Pencatatan Verifikasi*: Sistem akan mencatat riwayat di database mengenai siapa (Wali Kelas/Verifikator) yang melakukan verifikasi data siswa tersebut demi keperluan audit.
-
-
