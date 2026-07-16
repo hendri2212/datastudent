@@ -3,9 +3,10 @@ import { Head } from '@inertiajs/vue3';
 import {
     BookOpenCheck,
     GraduationCap,
-    MoreHorizontal,
+    Pencil,
     Plus,
     Search,
+    Trash2,
     Users,
 } from '@lucide/vue';
 import { computed, ref } from 'vue';
@@ -18,18 +19,21 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { index as majorsIndex } from '@/routes/majors';
+import MajorFormDialog from './MajorFormDialog.vue';
+import type { Major, MajorFormData } from './types';
 
-type Major = {
-    id: number;
-    code: string;
-    name: string;
-    studentCount: number;
-    status: 'Aktif' | 'Nonaktif';
-};
-
-const majors: Major[] = [
+const majors = ref<Major[]>([
     {
         id: 1,
         code: 'TJKT',
@@ -72,18 +76,22 @@ const majors: Major[] = [
         studentCount: 0,
         status: 'Nonaktif',
     },
-];
+]);
 
 const search = ref('');
+const formOpen = ref(false);
+const formMode = ref<'create' | 'edit'>('create');
+const selectedMajor = ref<Major | null>(null);
+const deleteDialogOpen = ref(false);
 
 const filteredMajors = computed(() => {
     const keyword = search.value.trim().toLocaleLowerCase('id');
 
     if (!keyword) {
-        return majors;
+        return majors.value;
     }
 
-    return majors.filter((major) =>
+    return majors.value.filter((major) =>
         [major.code, major.name, major.status].some((value) =>
             value.toLocaleLowerCase('id').includes(keyword),
         ),
@@ -91,11 +99,63 @@ const filteredMajors = computed(() => {
 });
 
 const activeMajors = computed(
-    () => majors.filter((major) => major.status === 'Aktif').length,
+    () => majors.value.filter((major) => major.status === 'Aktif').length,
 );
 const totalStudents = computed(() =>
-    majors.reduce((total, major) => total + major.studentCount, 0),
+    majors.value.reduce((total, major) => total + major.studentCount, 0),
 );
+
+const openCreateForm = () => {
+    formMode.value = 'create';
+    selectedMajor.value = null;
+    formOpen.value = true;
+};
+
+const openEditForm = (major: Major) => {
+    formMode.value = 'edit';
+    selectedMajor.value = major;
+    formOpen.value = true;
+};
+
+const saveMajor = (data: MajorFormData) => {
+    if (formMode.value === 'create') {
+        const nextId =
+            Math.max(0, ...majors.value.map((major) => major.id)) + 1;
+
+        majors.value.push({
+            id: nextId,
+            ...data,
+            studentCount: 0,
+        });
+
+        return;
+    }
+
+    if (!selectedMajor.value) {
+        return;
+    }
+
+    majors.value = majors.value.map((major) =>
+        major.id === selectedMajor.value?.id ? { ...major, ...data } : major,
+    );
+};
+
+const openDeleteDialog = (major: Major) => {
+    selectedMajor.value = major;
+    deleteDialogOpen.value = true;
+};
+
+const deleteMajor = () => {
+    if (!selectedMajor.value) {
+        return;
+    }
+
+    majors.value = majors.value.filter(
+        (major) => major.id !== selectedMajor.value?.id,
+    );
+    deleteDialogOpen.value = false;
+    selectedMajor.value = null;
+};
 
 defineOptions({
     layout: {
@@ -122,7 +182,7 @@ defineOptions({
                     Kelola data kompetensi keahlian yang tersedia di sekolah.
                 </p>
             </div>
-            <Button class="w-full sm:w-auto">
+            <Button class="w-full sm:w-auto" @click="openCreateForm">
                 <Plus class="size-4" />
                 Tambah Jurusan
             </Button>
@@ -213,7 +273,9 @@ defineOptions({
                                     Siswa
                                 </th>
                                 <th class="h-11 px-6 font-medium">Status</th>
-                                <th class="h-11 w-16 px-6"></th>
+                                <th class="h-11 px-6 text-right font-medium">
+                                    Aksi
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -255,13 +317,32 @@ defineOptions({
                                         {{ major.status }}
                                     </Badge>
                                 </td>
-                                <td class="px-6 py-4 text-right">
-                                    <Button variant="ghost" size="icon">
-                                        <MoreHorizontal class="size-4" />
-                                        <span class="sr-only"
-                                            >Aksi {{ major.name }}</span
+                                <td class="px-6 py-4">
+                                    <div class="flex justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Edit jurusan"
+                                            @click="openEditForm(major)"
                                         >
-                                    </Button>
+                                            <Pencil class="size-4" />
+                                            <span class="sr-only">
+                                                Edit {{ major.name }}
+                                            </span>
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="text-destructive hover:text-destructive"
+                                            title="Hapus jurusan"
+                                            @click="openDeleteDialog(major)"
+                                        >
+                                            <Trash2 class="size-4" />
+                                            <span class="sr-only">
+                                                Hapus {{ major.name }}
+                                            </span>
+                                        </Button>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="filteredMajors.length === 0">
@@ -277,5 +358,36 @@ defineOptions({
                 </div>
             </CardContent>
         </Card>
+
+        <MajorFormDialog
+            v-model:open="formOpen"
+            :mode="formMode"
+            :major="selectedMajor"
+            @submit="saveMajor"
+        />
+
+        <Dialog v-model:open="deleteDialogOpen">
+            <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Hapus Jurusan?</DialogTitle>
+                    <DialogDescription>
+                        Jurusan
+                        <strong class="font-medium text-foreground">
+                            {{ selectedMajor?.name }}
+                        </strong>
+                        akan dihapus dari data dummy. Tindakan ini hanya berlaku
+                        sampai halaman dimuat ulang.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter class="gap-2 sm:gap-0">
+                    <DialogClose as-child>
+                        <Button type="button" variant="outline">Batal</Button>
+                    </DialogClose>
+                    <Button variant="destructive" @click="deleteMajor">
+                        Hapus Jurusan
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
