@@ -7,6 +7,7 @@ Route::inertia('/', 'Welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
     Route::inertia('jurusan', 'majors/Index')->name('majors.index');
+    Route::inertia('kelas', 'classrooms/Index')->name('classrooms.index');
 });
 
 require __DIR__.'/settings.php';
