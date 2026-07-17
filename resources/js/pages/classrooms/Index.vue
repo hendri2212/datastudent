@@ -135,29 +135,21 @@ watch(searchQuery, () => {
     currentPage.value = 1;
 });
 
-const activeClassroomsOnly = computed(() => {
+// Hanya mengambil kelas yang belum di-soft delete
+const nonDeletedClassrooms = computed(() => {
     return classroomsList.value.filter(classroom => !classroom.isDeleted);
 });
 
-const filteredClassrooms = computed(() => {
-    const keyword = searchQuery.value.trim().toLowerCase();
-
-    if (!keyword) return classroomsList.value;
-
-    return classroomsList.value.filter((classroom) =>
-        [classroom.name, classroom.level, classroom.major.name].some((value) =>
-            value.toLowerCase().includes(keyword)
-        )
-    );
-});
-
+// Menghitung total seluruh siswa di sekolah (Hanya yang kelasnya Aktif & Tidak Terhapus)
 const totalAllStudentsInSchool = computed(() => 
-    activeClassroomsOnly.value.reduce((sum, c) => sum + c.studentCount, 0)
+    nonDeletedClassrooms.value
+        .filter(c => c.status === 'Aktif')
+        .reduce((sum, c) => sum + c.studentCount, 0)
 );
 
-const totalClassesCount = computed(() => activeClassroomsOnly.value.length);
-const activeClassesCount = computed(() => activeClassroomsOnly.value.filter(c => c.status === 'Aktif').length);
-const inactiveClassesCount = computed(() => activeClassroomsOnly.value.filter(c => c.status === 'Nonaktif').length);
+const totalClassesCount = computed(() => nonDeletedClassrooms.value.length);
+const activeClassesCount = computed(() => nonDeletedClassrooms.value.filter(c => c.status === 'Aktif').length);
+const inactiveClassesCount = computed(() => nonDeletedClassrooms.value.filter(c => c.status === 'Nonaktif').length);
 
 const activeClassesPercentage = computed(() => 
     totalClassesCount.value > 0 ? Math.round((activeClassesCount.value / totalClassesCount.value) * 100) : 0
@@ -166,16 +158,39 @@ const inactiveClassesPercentage = computed(() =>
     totalClassesCount.value > 0 ? 100 - activeClassesPercentage.value : 0
 );
 
+// Menghitung statistik kelas dan siswa per jurusan (Siswa nonaktif tidak ikut terhitung)
 const classesPerMajor = computed(() => {
     return majors.map(m => {
-        const filtered = activeClassroomsOnly.value.filter(c => c.major.id === m.id);
+        const filteredClasses = nonDeletedClassrooms.value.filter(c => c.major.id === m.id);
+        const activeClassesOnly = filteredClasses.filter(c => c.status === 'Aktif');
+        
         return {
             id: m.id,
             name: m.name,
             code: m.code,
-            classCount: filtered.length,
-            studentCount: filtered.reduce((sum, c) => sum + c.studentCount, 0)
+            classCount: filteredClasses.length, // Total kelas terdaftar (Aktif + Nonaktif)
+            studentCount: activeClassesOnly.reduce((sum, c) => sum + c.studentCount, 0) // Hanya siswa dari kelas aktif
         };
+    });
+});
+
+// Fitur pencarian fleksibel untuk mencari Nama, Tingkat, Jurusan, maupun Status (Aktif/Nonaktif/Terhapus)
+const filteredClassrooms = computed(() => {
+    const keyword = searchQuery.value.trim().toLowerCase();
+
+    if (!keyword) return classroomsList.value;
+
+    return classroomsList.value.filter((classroom) => {
+        const textToSearch = [
+            classroom.name, 
+            classroom.level, 
+            classroom.major.name,
+            classroom.isDeleted ? 'terhapus' : classroom.status
+        ];
+        
+        return textToSearch.some((value) =>
+            value.toLowerCase().includes(keyword)
+        );
     });
 });
 
@@ -306,6 +321,7 @@ const saveClassroom = () => {
     isModalOpen.value = false;
 };
 
+// 1. SOFT DELETE (Mengubah flag status data)
 const deleteClassroom = (id: number) => {
     const classroom = classroomsList.value.find(c => c.id === id);
     if (classroom) {
@@ -314,11 +330,20 @@ const deleteClassroom = (id: number) => {
     }
 };
 
+// RESTORE DATA DARI SOFT DELETE
 const restoreClassroom = (id: number) => {
     const classroom = classroomsList.value.find(c => c.id === id);
     if (classroom) {
         classroom.isDeleted = false;
         classroomsList.value = [...classroomsList.value];
+    }
+};
+
+// 2. HARD DELETE (Permanen hapus objek data)
+const hardDeleteClassroom = (id: number) => {
+    const confirmDelete = confirm("Apakah Anda yakin ingin menghapus kelas ini secara permanen? Tindakan ini tidak dapat dibatalkan.");
+    if (confirmDelete) {
+        classroomsList.value = classroomsList.value.filter(c => c.id !== id);
     }
 };
 
@@ -347,9 +372,12 @@ const selectedMajorStudentsByLevel = computed(() => {
     if (!selectedMajorData.value) return { X: 0, XI: 0, XII: 0, XIII: 0 };
     
     const result = { X: 0, XI: 0, XII: 0, XIII: 0 };
-    const majorClassrooms = activeClassroomsOnly.value.filter(c => c.major.id === selectedMajorData.value?.id);
+    // Hanya hitung siswa dari kelas yang aktif di jurusan ini
+    const activeMajorClassrooms = nonDeletedClassrooms.value.filter(
+        c => c.major.id === selectedMajorData.value?.id && c.status === 'Aktif'
+    );
     
-    majorClassrooms.forEach(c => {
+    activeMajorClassrooms.forEach(c => {
         if (c.level in result) {
             result[c.level] += c.studentCount;
         }
@@ -371,9 +399,6 @@ const levelHighlights = computed(() => {
     };
 });
 
-// ==========================================
-// FIX: PERHITUNGAN PERSENTASE GENDER SECARA ADIL & TERPISAH
-// ==========================================
 const malePercentage = computed(() => {
     if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) return 0;
     return Math.round((selectedClassroom.value.maleCount / selectedClassroom.value.studentCount) * 100);
@@ -381,7 +406,7 @@ const malePercentage = computed(() => {
 
 const femalePercentage = computed(() => {
     if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) return 0;
-    return 100 - malePercentage.value; // Memastikan total presisi genap 100%
+    return 100 - malePercentage.value; 
 });
 
 const majorPercentage = computed(() => {
@@ -394,10 +419,8 @@ const circumference = 2 * Math.PI * radius;
 
 const strokeDashoffset = computed(() => {
     if (detailType.value === 'class') {
-        // Lingkaran menggambarkan porsi Laki-laki (Biru) di atas dasar/track Perempuan (Pink)
         return circumference - (malePercentage.value / 100) * circumference;
     } else {
-        // Lingkaran menggambarkan kontribusi Siswa Jurusan terhadap total sekolah
         return circumference - (majorPercentage.value / 100) * circumference;
     }
 });
@@ -407,7 +430,6 @@ const strokeDashoffset = computed(() => {
     <Head title="Manajemen Kelas" />
 
     <div class="p-6 space-y-6 max-w-7xl mx-auto">
-        <!-- Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-5">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -428,9 +450,8 @@ const strokeDashoffset = computed(() => {
             </Button>
         </div>
 
-        <!-- Kartu Statistik Jurusan -->
         <div class="space-y-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Total Kelas & Siswa Per Jurusan</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Total Kelas & Siswa Aktif Per Jurusan</h3>
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <div 
                     v-for="item in classesPerMajor" 
@@ -445,14 +466,13 @@ const strokeDashoffset = computed(() => {
                     <div>
                         <div class="text-xl font-bold">{{ item.classCount }} <span class="text-xs font-normal text-muted-foreground">Kelas</span></div>
                         <div class="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
-                            <Users class="h-3 w-3" /> {{ item.studentCount.toLocaleString('id-ID') }} Siswa
+                            <Users class="h-3 w-3" /> {{ item.studentCount.toLocaleString('id-ID') }} Siswa Aktif
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Diagram Status Keaktifan -->
         <div class="grid gap-6 md:grid-cols-1">
             <div class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow-sm space-y-4">
                 <div class="flex items-center justify-between border-b pb-2.5">
@@ -466,7 +486,7 @@ const strokeDashoffset = computed(() => {
                 <div class="grid gap-6 md:grid-cols-2">
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-xs font-medium">
-                            <span>Aktif</span>
+                            <span>Aktif (Siswa Terhitung)</span>
                             <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ activeClassesCount }} Kelas ({{ activeClassesPercentage }}%)</span>
                         </div>
                         <div class="h-3 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -479,7 +499,7 @@ const strokeDashoffset = computed(() => {
 
                     <div class="space-y-1.5">
                         <div class="flex justify-between text-xs font-medium">
-                            <span>Nonaktif</span>
+                            <span>Nonaktif (Siswa Diabaikan)</span>
                             <span class="font-bold text-rose-600 dark:text-rose-400">{{ inactiveClassesCount }} Kelas ({{ inactiveClassesPercentage }}%)</span>
                         </div>
                         <div class="h-3 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
@@ -493,19 +513,18 @@ const strokeDashoffset = computed(() => {
             </div>
         </div>
 
-        <!-- Tabel Rombongan Belajar -->
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm">
             <div class="p-5 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h3 class="font-semibold text-neutral-900 dark:text-neutral-100">Rombongan Belajar</h3>
-                    <p class="text-xs text-muted-foreground">Kelola informasi rombongan belajar sekolah Anda.</p>
+                    <p class="text-xs text-muted-foreground">Kelola data rombel. Kolom pencarian mendukung pencarian status "Aktif", "Nonaktif", atau "Terhapus".</p>
                 </div>
-                <div class="relative w-full sm:w-72">
+                <div class="relative w-full sm:w-80">
                     <Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input 
                         v-model="searchQuery" 
                         class="pl-9" 
-                        placeholder="Cari kelas, tingkat, atau jurusan..." 
+                        placeholder="Cari kelas, jurusan, atau status (aktif/nonaktif)..." 
                     />
                 </div>
             </div>
@@ -520,7 +539,7 @@ const strokeDashoffset = computed(() => {
                             <th class="px-6 py-4">Jurusan</th>
                             <th class="px-6 py-4 w-36">Status</th> 
                             <th class="px-6 py-4 w-36 text-right">Total Siswa</th>
-                            <th class="px-6 py-4 w-24 text-right">Aksi</th>
+                            <th class="px-6 py-4 w-32 text-right">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 text-sm text-neutral-700 dark:text-neutral-300">
@@ -560,11 +579,15 @@ const strokeDashoffset = computed(() => {
                                         {{ classroom.isDeleted ? 'Terhapus' : classroom.status }}
                                     </Badge>
                                 </td>
-                                <td class="px-6 py-4 text-right tabular-nums truncate w-36 font-semibold text-neutral-900 dark:text-neutral-100">
+                                <td 
+                                    class="px-6 py-4 text-right tabular-nums truncate w-36 font-semibold"
+                                    :class="[classroom.status === 'Nonaktif' || classroom.isDeleted ? 'text-neutral-400 italic font-normal text-xs' : 'text-neutral-900 dark:text-neutral-100']"
+                                >
                                     {{ classroom.studentCount.toLocaleString('id-ID') }} Siswa
+                                    <span v-if="classroom.status === 'Nonaktif' && !classroom.isDeleted" class="block text-[10px] text-rose-500 font-medium">(Tak Terhitung)</span>
                                 </td>
-                                <td class="px-6 py-4 text-right w-24">
-                                    <div v-if="classroom.isDeleted" class="flex justify-end">
+                                <td class="px-6 py-4 text-right w-32">
+                                    <div v-if="classroom.isDeleted" class="flex justify-end gap-1">
                                         <Button 
                                             variant="ghost" 
                                             size="icon" 
@@ -573,6 +596,15 @@ const strokeDashoffset = computed(() => {
                                             @click="restoreClassroom(classroom.id)"
                                         >
                                             <RotateCcw class="size-4" />
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            class="cursor-pointer text-destructive hover:bg-destructive/10"
+                                            title="Hapus Permanen"
+                                            @click="hardDeleteClassroom(classroom.id)"
+                                        >
+                                            <Trash2 class="size-4" />
                                         </Button>
                                     </div>
                                     <DropdownMenu v-else>
@@ -603,11 +635,10 @@ const strokeDashoffset = computed(() => {
 
                         <tr v-else class="h-[61px]">
                             <td colspan="7" class="px-6 text-center text-muted-foreground italic">
-                                Rombel atau jurusan yang dicari tidak ditemukan.
+                                Rombel, jurusan, atau status yang dicari tidak ditemukan.
                             </td>
                         </tr>
 
-                        <!-- Baris kosong otomatis penyeimbang layout tabel pagination -->
                         <tr 
                             v-for="emptyRow in (itemsPerPage - (paginatedClassrooms.length || 1))" 
                             :key="'blank-' + emptyRow"
@@ -619,13 +650,12 @@ const strokeDashoffset = computed(() => {
                             <td></td> 
                             <td class="w-28"></td>
                             <td class="w-36"></td>
-                            <td class="w-24"></td>
+                            <td class="w-32"></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Footer Navigasi -->
             <div class="px-6 py-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/20 flex items-center justify-between">
                 <span class="text-xs text-muted-foreground">
                     Menampilkan <b>{{ filteredClassrooms.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1 }}</b> - <b>{{ Math.min(currentPage * itemsPerPage, filteredClassrooms.length) }}</b> dari <b>{{ filteredClassrooms.length }}</b> data hasil pencarian.
@@ -656,7 +686,6 @@ const strokeDashoffset = computed(() => {
         </div>
     </div>
 
-    <!-- Dialog Modal (Tambah & Edit Kelas) -->
     <Dialog v-model:open="isModalOpen">
         <DialogContent class="sm:max-w-[425px]">
             <DialogHeader>
@@ -743,7 +772,6 @@ const strokeDashoffset = computed(() => {
         </DialogContent>
     </Dialog>
 
-    <!-- Dialog Modal Statistik Terintegrasi (Kelas & Jurusan) -->
     <Dialog v-model:open="isStatusModalOpen">
         <DialogContent class="sm:max-w-[450px]">
             <DialogHeader>
@@ -758,13 +786,9 @@ const strokeDashoffset = computed(() => {
                 </DialogDescription>
             </DialogHeader>
 
-            <!-- VIEW DETAIL KELAS -->
             <div v-if="detailType === 'class' && selectedClassroom" class="space-y-6 py-4 flex flex-col items-center">
-                
-                <!-- GRAFIK LINGKARAN DUA GENDER PROPORSIONAL -->
                 <div class="relative flex items-center justify-center">
                     <svg class="w-32 h-32 transform -rotate-90">
-                        <!-- Lingkaran Luar (Warna Pink menggambarkan porsi Perempuan sebagai basis) -->
                         <circle
                             cx="64"
                             cy="64"
@@ -774,7 +798,6 @@ const strokeDashoffset = computed(() => {
                             fill="transparent"
                             class="text-pink-400 dark:text-pink-500/40"
                         />
-                        <!-- Lingkaran Atas (Warna Biru menggambarkan porsi Laki-laki secara interaktif) -->
                         <circle
                             cx="64"
                             cy="64"
@@ -788,7 +811,6 @@ const strokeDashoffset = computed(() => {
                             class="text-blue-500 dark:text-blue-400 transition-all duration-700 ease-in-out"
                         />
                     </svg>
-                    <!-- Label di tengah lingkaran menampilkan persentase adil kedua belah gender -->
                     <div class="absolute flex flex-col items-center bg-white dark:bg-neutral-900 px-2 py-1 rounded-md">
                         <span class="text-xs font-bold text-blue-600 dark:text-blue-400">
                             L: {{ malePercentage }}%
@@ -800,7 +822,6 @@ const strokeDashoffset = computed(() => {
                     </div>
                 </div>
 
-                <!-- Detail Jumlah Siswa + Persentase Tersemat -->
                 <div class="w-full grid grid-cols-2 gap-4 text-center px-4">
                     <div class="p-2.5 rounded-lg border bg-blue-50/50 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40">
                         <span class="text-xs text-blue-600 dark:text-blue-400 font-medium block">Laki-Laki (L)</span>
@@ -836,7 +857,6 @@ const strokeDashoffset = computed(() => {
                 </div>
             </div>
 
-            <!-- VIEW DETAIL JURUSAN -->
             <div v-else-if="detailType === 'major' && selectedMajorData" class="space-y-6 py-4 flex flex-col items-center">
                 <div class="relative flex items-center justify-center">
                     <svg class="w-32 h-32 transform -rotate-90">
@@ -867,18 +887,18 @@ const strokeDashoffset = computed(() => {
                             {{ majorPercentage }}%
                         </span>
                         <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                            Rasio Siswa
+                            Rasio Siswa Aktif
                         </span>
                     </div>
                 </div>
 
                 <div class="w-full text-center px-4 space-y-4">
                     <p class="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-                        Jurusan <b>{{ selectedMajorData.name }} ({{ selectedMajorData.code }})</b> menampung sebanyak <b>{{ selectedMajorData.studentCount.toLocaleString('id-ID') }} siswa aktif</b>, yang berkontribusi sebesar <b>{{ majorPercentage }}%</b> dari total seluruh siswa terdaftar di sekolah ini.
+                        Jurusan <b>{{ selectedMajorData.name }} ({{ selectedMajorData.code }})</b> memiliki kontribusi total sebanyak <b>{{ selectedMajorData.studentCount.toLocaleString('id-ID') }} siswa aktif</b> terhitung, setara dengan <b>{{ majorPercentage }}%</b> dari total seluruh siswa aktif di sekolah ini.
                     </p>
 
                     <div class="border rounded-xl p-4 bg-neutral-50/50 dark:bg-neutral-800/30 text-left space-y-3">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Jumlah Siswa Per Kelas</h4>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Jumlah Siswa Per Kelas (Hanya Kelas Aktif)</h4>
                         
                         <div class="space-y-2">
                             <div 
