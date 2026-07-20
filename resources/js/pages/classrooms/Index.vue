@@ -16,16 +16,8 @@ import {
     RotateCcw
 } from '@lucide/vue';
 import { ref, computed, watch } from 'vue'; 
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -34,6 +26,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Major {
     id: number;
@@ -93,7 +93,8 @@ const calculateReligionDistribution = (totalStudents: number, salt: number) => {
 };
 
 const getRandomMaleRatio = (salt: number) => {
-    const percentage = 30 + ((salt * 17) % 41); 
+    const percentage = 30 + ((salt * 17) % 41);
+ 
     return percentage / 100;
 };
 
@@ -178,7 +179,9 @@ const classesPerMajor = computed(() => {
 const filteredClassrooms = computed(() => {
     const keyword = searchQuery.value.trim().toLowerCase();
 
-    if (!keyword) return classroomsList.value;
+    if (!keyword) {
+return classroomsList.value;
+}
 
     return classroomsList.value.filter((classroom) => {
         const textToSearch = [
@@ -199,11 +202,20 @@ const totalPages = computed(() => Math.ceil(filteredClassrooms.value.length / it
 const paginatedClassrooms = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
     const end = start + itemsPerPage;
+
     return filteredClassrooms.value.slice(start, end);
 });
 
-const prevPage = () => { if (currentPage.value > 1) currentPage.value--; };
-const nextPage = () => { if (currentPage.value < totalPages.value) currentPage.value++; };
+const prevPage = () => {
+ if (currentPage.value > 1) {
+currentPage.value--;
+} 
+};
+const nextPage = () => {
+ if (currentPage.value < totalPages.value) {
+currentPage.value++;
+} 
+};
 
 // ==========================================
 // STATE & FUNGSI TAMBAH/EDIT KELAS
@@ -255,13 +267,16 @@ const openEditModal = (classroom: Classroom) => {
 
 const saveClassroom = () => {
     const selectedMajor = majors.find(m => m.id === Number(form.value.majorId));
+
     if (!selectedMajor) {
         formError.value = 'Jurusan tidak valid.';
+
         return;
     }
 
     if (!form.value.groupNumber.toString().trim()) {
         formError.value = 'Nomor kelompok rombel harus diisi!';
+
         return;
     }
 
@@ -294,6 +309,7 @@ const saveClassroom = () => {
         ];
     } else {
         const index = classroomsList.value.findIndex(c => c.id === form.value.id);
+
         if (index !== -1) {
             const current = classroomsList.value[index];
             
@@ -324,6 +340,7 @@ const saveClassroom = () => {
 // 1. SOFT DELETE (Mengubah flag status data)
 const deleteClassroom = (id: number) => {
     const classroom = classroomsList.value.find(c => c.id === id);
+
     if (classroom) {
         classroom.isDeleted = true;
         classroomsList.value = [...classroomsList.value];
@@ -333,6 +350,7 @@ const deleteClassroom = (id: number) => {
 // RESTORE DATA DARI SOFT DELETE
 const restoreClassroom = (id: number) => {
     const classroom = classroomsList.value.find(c => c.id === id);
+
     if (classroom) {
         classroom.isDeleted = false;
         classroomsList.value = [...classroomsList.value];
@@ -342,6 +360,7 @@ const restoreClassroom = (id: number) => {
 // 2. HARD DELETE (Permanen hapus objek data)
 const hardDeleteClassroom = (id: number) => {
     const confirmDelete = confirm("Apakah Anda yakin ingin menghapus kelas ini secara permanen? Tindakan ini tidak dapat dibatalkan.");
+
     if (confirmDelete) {
         classroomsList.value = classroomsList.value.filter(c => c.id !== id);
     }
@@ -369,7 +388,9 @@ const openMajorDetail = (majorItem: { id: number; name: string; code: string; st
 };
 
 const selectedMajorStudentsByLevel = computed(() => {
-    if (!selectedMajorData.value) return { X: 0, XI: 0, XII: 0, XIII: 0 };
+    if (!selectedMajorData.value) {
+return { X: 0, XI: 0, XII: 0, XIII: 0 };
+}
     
     const result = { X: 0, XI: 0, XII: 0, XIII: 0 };
     // Hanya hitung siswa dari kelas yang aktif di jurusan ini
@@ -400,17 +421,26 @@ const levelHighlights = computed(() => {
 });
 
 const malePercentage = computed(() => {
-    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) return 0;
+    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) {
+return 0;
+}
+
     return Math.round((selectedClassroom.value.maleCount / selectedClassroom.value.studentCount) * 100);
 });
 
 const femalePercentage = computed(() => {
-    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) return 0;
+    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) {
+return 0;
+}
+
     return 100 - malePercentage.value; 
 });
 
 const majorPercentage = computed(() => {
-    if (!selectedMajorData.value || totalAllStudentsInSchool.value === 0) return 0;
+    if (!selectedMajorData.value || totalAllStudentsInSchool.value === 0) {
+return 0;
+}
+
     return Math.round((selectedMajorData.value.studentCount / totalAllStudentsInSchool.value) * 100);
 });
 

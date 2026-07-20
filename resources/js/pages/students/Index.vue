@@ -239,7 +239,6 @@ const selectedStudentForUnlock = ref<any>(null);
 // Security OTP & Anti-Tamper Configuration
 const authCodeInput = ref('');
 const authError = ref('');
-const copiedField = ref<string | null>(null);
 const systemSecureToken = '000000'; 
 
 // Sub-Tab inside detail modal view
