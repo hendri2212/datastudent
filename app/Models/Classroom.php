@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\ClassroomFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,18 +11,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Classroom extends Model
 {
+    /** @use HasFactory<ClassroomFactory> */
     use HasFactory, SoftDeletes;
 
-    protected $fillable = [
-        'major_id',
-        'name',
-        'rombel',
-        'level',
-        'status',
-    ];
+    protected $guarded = ['id'];
 
     /**
-     * Relasi ke Jurusan (Setiap Kelas milik 1 Jurusan)
+     * @return BelongsTo<Major, $this>
      */
     public function major(): BelongsTo
     {
@@ -29,7 +25,7 @@ class Classroom extends Model
     }
 
     /**
-     * Relasi ke Siswa (1 Kelas punya banyak Siswa)
+     * @return HasMany<Student, $this>
      */
     public function students(): HasMany
     {

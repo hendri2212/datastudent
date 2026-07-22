@@ -19,17 +19,14 @@ class ClassroomController extends Controller
         $search = $request->input('search');
         $tab = $request->input('tab', 'active');
 
-        // Query dasar
         $query = Classroom::query()->with(['major', 'students.religion', 'students.gender']);
 
-        // Pemisahan Tab Soft Delete dari Server-side
         if ($tab === 'trashed') {
             $query->onlyTrashed();
         } else {
             $query->withoutTrashed();
         }
 
-        // Search Filter
         $classrooms = $query
             ->when($search, function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
@@ -96,6 +93,7 @@ class ClassroomController extends Controller
             'level' => ['required', 'in:X,XI,XII'],
         ]);
 
+        /** @var Major $major */
         $major = Major::findOrFail($validated['major_id']);
 
         $lastRombel = Classroom::withTrashed()
@@ -128,6 +126,7 @@ class ClassroomController extends Controller
             'status' => ['required', 'in:Aktif,Nonaktif'],
         ]);
 
+        /** @var Major $major */
         $major = Major::findOrFail($validated['major_id']);
 
         $classroom->update([

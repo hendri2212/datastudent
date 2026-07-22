@@ -3,83 +3,39 @@
 namespace App\Http\Controllers;
 
 use App\Models\Major;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MajorController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(): Response
     {
-        // Ambil school_id dari user yang sedang login (sesuaikan jika belum ada relasi school_id)
-        $schoolId = $request->user()->school_id ?? 1;
-
-        $search = $request->input('search');
-
-        $majors = Major::query()
-            ->where('school_id', $schoolId)
-            ->withCount('students')
-            ->when($search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('code', 'like', "%{$search}%")
-                      ->orWhere('name', 'like', "%{$search}%")
-                      ->orWhere('status', 'like', "%{$search}%");
-                });
-            })
-            ->latest()
-            ->get()
-            ->map(fn ($major) => [
-                'id' => $major->id,
-                'code' => $major->code,
-                'name' => $major->name,
-                'status' => $major->status,
-                'studentCount' => $major->students_count ?? 0,
-            ]);
-
         return Inertia::render('majors/Index', [
-            'majors' => $majors,
-            'filters' => [
-                'search' => $search,
-            ],
+            'majors' => Major::with('school')->get(),
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
-        $schoolId = $request->user()->school_id ?? 1;
-
         $validated = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:20',
-                "unique:majors,code,NULL,id,school_id,{$schoolId}",
-            ],
+            'school_id' => ['required', 'exists:schools,id'],
             'name' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'in:Aktif,Nonaktif'],
+            'code' => ['required', 'string', 'max:50'],
         ]);
 
-        Major::create([
-            'school_id' => $schoolId,
-            ...$validated,
-        ]);
+        Major::create($validated);
 
         return back()->with('success', 'Jurusan berhasil ditambahkan.');
     }
 
-    public function update(Request $request, Major $major)
+    public function update(Request $request, Major $major): RedirectResponse
     {
-        $schoolId = $request->user()->school_id ?? 1;
-
         $validated = $request->validate([
-            'code' => [
-                'required',
-                'string',
-                'max:20',
-                "unique:majors,code,{$major->id},id,school_id,{$schoolId}",
-            ],
+            'school_id' => ['required', 'exists:schools,id'],
             'name' => ['required', 'string', 'max:255'],
-            'status' => ['required', 'in:Aktif,Nonaktif'],
+            'code' => ['required', 'string', 'max:50'],
         ]);
 
         $major->update($validated);
@@ -87,7 +43,7 @@ class MajorController extends Controller
         return back()->with('success', 'Jurusan berhasil diperbarui.');
     }
 
-    public function destroy(Major $major)
+    public function destroy(Major $major): RedirectResponse
     {
         $major->delete();
 
