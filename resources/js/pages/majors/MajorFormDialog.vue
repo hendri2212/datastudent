@@ -38,6 +38,7 @@ const form = reactive<MajorFormData>({
     code: '',
     name: '',
     status: 'Aktif',
+    school_id: undefined,
 });
 
 const title = computed(() =>
@@ -54,6 +55,7 @@ const resetForm = () => {
     form.code = props.major?.code ?? '';
     form.name = props.major?.name ?? '';
     form.status = props.major?.status ?? 'Aktif';
+    form.school_id = props.major?.school_id ?? undefined;
 };
 
 watch(
@@ -70,6 +72,7 @@ const submit = () => {
         code: form.code.trim().toLocaleUpperCase('id'),
         name: form.name.trim(),
         status: form.status,
+        school_id: form.school_id,
     });
 };
 </script>
@@ -89,7 +92,7 @@ const submit = () => {
                         <Input
                             id="major-code"
                             v-model="form.code"
-                            maxlength="10"
+                            maxlength="20"
                             placeholder="Contoh: PPLG"
                             required
                         />
@@ -97,7 +100,7 @@ const submit = () => {
                             {{ errors.code }}
                         </p>
                         <p v-else class="text-xs text-muted-foreground">
-                            Gunakan singkatan unik maksimal 10 karakter.
+                            Gunakan singkatan unik maksimal 20 karakter.
                         </p>
                     </div>
 

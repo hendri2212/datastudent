@@ -32,7 +32,6 @@ import { Input } from '@/components/ui/input';
 import MajorFormDialog from './MajorFormDialog.vue';
 import type { Major, MajorFormData } from './types';
 
-// Receive props dari Laravel Controller
 const props = defineProps<{
     majors: Major[];
     filters: { search?: string };
@@ -44,7 +43,6 @@ const formMode = ref<'create' | 'edit'>('create');
 const selectedMajor = ref<Major | null>(null);
 const deleteDialogOpen = ref(false);
 
-// Filter data lokal berdasarkan input pencarian
 const filteredMajors = computed(() => {
     if (!search.value) return props.majors;
     const query = search.value.toLowerCase();
@@ -56,22 +54,21 @@ const filteredMajors = computed(() => {
     );
 });
 
-// Reactive stats dari data asli database
 const activeMajors = computed(
     () => props.majors.filter((m) => m.status === 'Aktif').length,
 );
+
 const totalStudents = computed(() =>
     props.majors.reduce((sum, m) => sum + (m.studentCount || 0), 0),
 );
 
-// Inertia Form
 const form = useForm<MajorFormData>({
     code: '',
     name: '',
     status: 'Aktif',
+    school_id: undefined,
 });
 
-// Helper muka modal form & dialog
 const openCreateForm = () => {
     formMode.value = 'create';
     selectedMajor.value = null;
@@ -86,6 +83,7 @@ const openEditForm = (major: Major) => {
     form.code = major.code;
     form.name = major.name;
     form.status = major.status;
+    form.school_id = major.school_id;
     form.clearErrors();
     formOpen.value = true;
 };
@@ -95,11 +93,11 @@ const openDeleteDialog = (major: Major) => {
     deleteDialogOpen.value = true;
 };
 
-// Pemicu aksi Simpan (Create / Update) via Inertia
 const saveMajor = (data: MajorFormData) => {
     form.code = data.code;
     form.name = data.name;
     form.status = data.status;
+    form.school_id = data.school_id;
 
     if (formMode.value === 'create') {
         form.post('/majors', {
@@ -118,7 +116,6 @@ const saveMajor = (data: MajorFormData) => {
     }
 };
 
-// Pemicu aksi Hapus via Inertia
 const deleteMajor = () => {
     if (!selectedMajor.value) return;
 
