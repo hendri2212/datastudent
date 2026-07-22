@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import {
     BookOpenCheck,
     GraduationCap,
@@ -8,7 +8,7 @@ import {
     Search,
     Trash2,
     Users,
-} from '@lucide/vue';
+} from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,115 +29,65 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { index as majorsIndex } from '@/routes/majors';
 import MajorFormDialog from './MajorFormDialog.vue';
 import type { Major, MajorFormData } from './types';
 
-const majors = ref<Major[]>([
-    {
-        id: 1,
-        code: 'TJKT',
-        name: 'Teknik Jaringan Komputer dan Telekomunikasi',
-        studentCount: 216,
-        status: 'Aktif',
-    },
-    {
-        id: 2,
-        code: 'PPLG',
-        name: 'Pengembangan Perangkat Lunak dan Gim',
-        studentCount: 198,
-        status: 'Aktif',
-    },
-    {
-        id: 3,
-        code: 'TKR',
-        name: 'Teknik Kendaraan Ringan',
-        studentCount: 184,
-        status: 'Aktif',
-    },
-    {
-        id: 4,
-        code: 'AKL',
-        name: 'Akuntansi dan Keuangan Lembaga',
-        studentCount: 172,
-        status: 'Aktif',
-    },
-    {
-        id: 5,
-        code: 'MPLB',
-        name: 'Manajemen Perkantoran dan Layanan Bisnis',
-        studentCount: 165,
-        status: 'Aktif',
-    },
-    {
-        id: 6,
-        code: 'PM',
-        name: 'Pemasaran',
-        studentCount: 0,
-        status: 'Nonaktif',
-    },
-]);
+// Receive props dari Laravel Controller
+const props = defineProps<{
+    majors: Major[];
+    filters: { search?: string };
+}>();
 
-const search = ref('');
+const search = ref(props.filters?.search || '');
 const formOpen = ref(false);
 const formMode = ref<'create' | 'edit'>('create');
 const selectedMajor = ref<Major | null>(null);
 const deleteDialogOpen = ref(false);
 
+// Filter data lokal berdasarkan input pencarian
 const filteredMajors = computed(() => {
-    const keyword = search.value.trim().toLocaleLowerCase('id');
-
-    if (!keyword) {
-        return majors.value;
-    }
-
-    return majors.value.filter((major) =>
-        [major.code, major.name, major.status].some((value) =>
-            value.toLocaleLowerCase('id').includes(keyword),
-        ),
+    if (!search.value) return props.majors;
+    const query = search.value.toLowerCase();
+    return props.majors.filter(
+        (m) =>
+            m.code.toLowerCase().includes(query) ||
+            m.name.toLowerCase().includes(query) ||
+            m.status.toLowerCase().includes(query),
     );
 });
 
+// Reactive stats dari data asli database
 const activeMajors = computed(
-    () => majors.value.filter((major) => major.status === 'Aktif').length,
+    () => props.majors.filter((m) => m.status === 'Aktif').length,
 );
 const totalStudents = computed(() =>
-    majors.value.reduce((total, major) => total + major.studentCount, 0),
+    props.majors.reduce((sum, m) => sum + (m.studentCount || 0), 0),
 );
 
+// Inertia Form
+const form = useForm<MajorFormData>({
+    code: '',
+    name: '',
+    status: 'Aktif',
+});
+
+// Helper muka modal form & dialog
 const openCreateForm = () => {
     formMode.value = 'create';
     selectedMajor.value = null;
+    form.reset();
+    form.clearErrors();
     formOpen.value = true;
 };
 
 const openEditForm = (major: Major) => {
     formMode.value = 'edit';
     selectedMajor.value = major;
+    form.code = major.code;
+    form.name = major.name;
+    form.status = major.status;
+    form.clearErrors();
     formOpen.value = true;
-};
-
-const saveMajor = (data: MajorFormData) => {
-    if (formMode.value === 'create') {
-        const nextId =
-            Math.max(0, ...majors.value.map((major) => major.id)) + 1;
-
-        majors.value.push({
-            id: nextId,
-            ...data,
-            studentCount: 0,
-        });
-
-        return;
-    }
-
-    if (!selectedMajor.value) {
-        return;
-    }
-
-    majors.value = majors.value.map((major) =>
-        major.id === selectedMajor.value?.id ? { ...major, ...data } : major,
-    );
 };
 
 const openDeleteDialog = (major: Major) => {
@@ -145,28 +95,40 @@ const openDeleteDialog = (major: Major) => {
     deleteDialogOpen.value = true;
 };
 
-const deleteMajor = () => {
-    if (!selectedMajor.value) {
-        return;
-    }
+// Pemicu aksi Simpan (Create / Update) via Inertia
+const saveMajor = (data: MajorFormData) => {
+    form.code = data.code;
+    form.name = data.name;
+    form.status = data.status;
 
-    majors.value = majors.value.filter(
-        (major) => major.id !== selectedMajor.value?.id,
-    );
-    deleteDialogOpen.value = false;
-    selectedMajor.value = null;
+    if (formMode.value === 'create') {
+        form.post('/majors', {
+            onSuccess: () => {
+                formOpen.value = false;
+                form.reset();
+            },
+        });
+    } else if (selectedMajor.value) {
+        form.put(`/majors/${selectedMajor.value.id}`, {
+            onSuccess: () => {
+                formOpen.value = false;
+                form.reset();
+            },
+        });
+    }
 };
 
-defineOptions({
-    layout: {
-        breadcrumbs: [
-            {
-                title: 'Jurusan',
-                href: majorsIndex(),
-            },
-        ],
-    },
-});
+// Pemicu aksi Hapus via Inertia
+const deleteMajor = () => {
+    if (!selectedMajor.value) return;
+
+    router.delete(`/majors/${selectedMajor.value.id}`, {
+        onSuccess: () => {
+            deleteDialogOpen.value = false;
+            selectedMajor.value = null;
+        },
+    });
+};
 </script>
 
 <template>
@@ -246,7 +208,7 @@ defineOptions({
                 <div>
                     <CardTitle>Daftar Jurusan</CardTitle>
                     <CardDescription>
-                        Data berikut masih menggunakan data dummy.
+                        Daftar kompetensi keahlian dan jumlah siswa terdaftar.
                     </CardDescription>
                 </div>
                 <div class="relative w-full sm:w-72">
@@ -301,7 +263,7 @@ defineOptions({
                                 </td>
                                 <td class="px-6 py-4 text-right tabular-nums">
                                     {{
-                                        major.studentCount.toLocaleString(
+                                        (major.studentCount || 0).toLocaleString(
                                             'id-ID',
                                         )
                                     }}
@@ -363,6 +325,8 @@ defineOptions({
             v-model:open="formOpen"
             :mode="formMode"
             :major="selectedMajor"
+            :errors="form.errors"
+            :processing="form.processing"
             @submit="saveMajor"
         />
 
@@ -371,12 +335,11 @@ defineOptions({
                 <DialogHeader>
                     <DialogTitle>Hapus Jurusan?</DialogTitle>
                     <DialogDescription>
-                        Jurusan
+                        Apakah Anda yakin ingin menghapus jurusan
                         <strong class="font-medium text-foreground">
                             {{ selectedMajor?.name }}
                         </strong>
-                        akan dihapus dari data dummy. Tindakan ini hanya berlaku
-                        sampai halaman dimuat ulang.
+                        ? Tindakan ini tidak dapat dibatalkan.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter class="gap-2 sm:gap-0">

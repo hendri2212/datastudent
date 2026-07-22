@@ -25,6 +25,8 @@ const props = defineProps<{
     open: boolean;
     mode: 'create' | 'edit';
     major?: Major | null;
+    errors?: Record<string, string>;
+    processing?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -69,7 +71,6 @@ const submit = () => {
         name: form.name.trim(),
         status: form.status,
     });
-    emit('update:open', false);
 };
 </script>
 
@@ -92,7 +93,10 @@ const submit = () => {
                             placeholder="Contoh: PPLG"
                             required
                         />
-                        <p class="text-xs text-muted-foreground">
+                        <p v-if="errors?.code" class="text-xs text-destructive">
+                            {{ errors.code }}
+                        </p>
+                        <p v-else class="text-xs text-muted-foreground">
                             Gunakan singkatan unik maksimal 10 karakter.
                         </p>
                     </div>
@@ -106,6 +110,9 @@ const submit = () => {
                             placeholder="Contoh: Pengembangan Perangkat Lunak dan Gim"
                             required
                         />
+                        <p v-if="errors?.name" class="text-xs text-destructive">
+                            {{ errors.name }}
+                        </p>
                     </div>
 
                     <div class="grid gap-2">
@@ -126,6 +133,12 @@ const submit = () => {
                                 >
                             </SelectContent>
                         </Select>
+                        <p
+                            v-if="errors?.status"
+                            class="text-xs text-destructive"
+                        >
+                            {{ errors.status }}
+                        </p>
                     </div>
                 </div>
 
@@ -133,11 +146,13 @@ const submit = () => {
                     <DialogClose as-child>
                         <Button type="button" variant="outline">Batal</Button>
                     </DialogClose>
-                    <Button type="submit">
+                    <Button type="submit" :disabled="processing">
                         {{
-                            mode === 'create'
-                                ? 'Tambah Jurusan'
-                                : 'Simpan Perubahan'
+                            processing
+                                ? 'Menyimpan...'
+                                : mode === 'create'
+                                  ? 'Tambah Jurusan'
+                                  : 'Simpan Perubahan'
                         }}
                     </Button>
                 </DialogFooter>

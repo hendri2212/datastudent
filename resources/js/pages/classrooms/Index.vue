@@ -1,20 +1,23 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import { 
     Plus, 
     School, 
     Pencil, 
     Trash2, 
-    ChevronLeft, 
-    ChevronRight, 
     Search,
     GraduationCap,
     Users,
     MoreHorizontal,
     Info,
-    CheckCircle2,
-    RotateCcw
-} from '@lucide/vue';
+    RotateCcw,
+    Archive,
+    Filter,
+    X,
+    ChevronLeft,
+    ChevronRight,
+    Loader2
+} from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue'; 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,10 +47,12 @@ interface Major {
 interface Classroom {
     id: number;
     name: string;
-    level: 'X' | 'XI' | 'XII' | 'XIII';
+    level: 'X' | 'XI' | 'XII';
+    rombel: number;
     major: Major;
     studentCount: number;
     status: 'Aktif' | 'Nonaktif';
+    deleted_at?: string | null;
     maleCount: number;
     femaleCount: number;
     religion: {
@@ -56,907 +61,733 @@ interface Classroom {
         katolik: number;
         hindu: number;
         buddha: number;
-        konghucu: number;
+        khonghucu: number;
     };
-    isDeleted?: boolean; 
 }
 
-const majors: Major[] = [
-    { id: 1, name: 'Rekayasa Perangkat Lunak', code: 'RPL' },
-    { id: 2, name: 'Teknik Jaringan Komputer dan Telekomunikasi', code: 'TJKT' },
-    { id: 3, name: 'Teknik Kendaraan Ringan', code: 'TKR' },
-    { id: 4, name: 'Akuntansi dan Keuangan Lembaga', code: 'AKL' },
-    { id: 5, name: 'Manajemen Perkantoran dan Layanan Bisnis', code: 'MPLB' }
-];
+const props = defineProps<{
+    classrooms: Classroom[];
+    majors: Major[];
+    trashedCount: number;
+    filters: { 
+        search?: string; 
+        tab?: string;
+    };
+}>();
 
-const calculateReligionDistribution = (totalStudents: number, salt: number) => {
-    let remaining = totalStudents;
+// Filter States
+const activeTab = ref<'active' | 'trashed'>(props.filters?.tab === 'trashed' ? 'trashed' : 'active');
+const searchQuery = ref(props.filters?.search || '');
+const selectedLevel = ref('');
+const selectedMajor = ref('');
+const selectedRombel = ref('');
 
-    const islam = Math.max(0, Math.floor(remaining * (0.75 + (salt % 3) * 0.05)));
-    remaining -= islam;
+// Pagination States
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
 
-    const kristen = Math.max(0, Math.floor(remaining * 0.4));
-    remaining -= kristen;
+// Modal Controls & Selected Target
+const isAddModalOpen = ref(false);
+const isEditModalOpen = ref(false);
+const isDeleteModalOpen = ref(false);
+const isForceDeleteModalOpen = ref(false);
+const isStatusModalOpen = ref(false);
 
-    const katolik = Math.max(0, Math.floor(remaining * 0.3));
-    remaining -= katolik;
+const selectedClassroom = ref<Classroom | null>(null);
 
-    const hindu = Math.max(0, Math.floor(remaining * 0.4));
-    remaining -= hindu;
+// Specific Loaders
+const isDeleting = ref(false);
+const isForceDeleting = ref(false);
+const restoringId = ref<number | null>(null);
 
-    const buddha = Math.max(0, Math.floor(remaining * 0.5));
-    remaining -= buddha;
+// Form Handlers
+const addForm = useForm({
+    major_id: '' as number | '',
+    level: 'X' as 'X' | 'XI' | 'XII',
+});
 
-    const konghucu = remaining; 
+const editForm = useForm({
+    major_id: '' as number | '',
+    level: 'X' as 'X' | 'XI' | 'XII',
+    rombel: 1,
+    status: 'Aktif' as 'Aktif' | 'Nonaktif',
+});
 
-    return { islam, kristen, katolik, hindu, buddha, konghucu };
-};
-
-const getRandomMaleRatio = (salt: number) => {
-    const percentage = 30 + ((salt * 17) % 41);
- 
-    return percentage / 100;
-};
-
-const classroomsList = ref<Classroom[]>(
-    Array.from({ length: 100 }, (_, i) => {
-        const id = i + 1;
-        const major = majors[i % majors.length];
-        const level = ['X', 'XI', 'XII', 'XIII'][i % 4] as 'X' | 'XI' | 'XII' | 'XIII';
-        const groupNumber = Math.floor(i / majors.length) % 3 + 1; 
-        const studentCount = 30 + (i % 7); 
-        const status = i % 8 === 7 ? 'Nonaktif' : 'Aktif'; 
-
-        const maleRatio = getRandomMaleRatio(id);
-        const maleCount = Math.floor(studentCount * maleRatio);
-        const femaleCount = studentCount - maleCount;
-
-        const religion = calculateReligionDistribution(studentCount, id);
-
-        return {
-            id,
-            name: `${level} ${major.code} ${groupNumber}`,
-            level,
-            major,
-            studentCount,
-            status,
-            maleCount,
-            femaleCount,
-            religion,
-            isDeleted: false 
-        };
-    })
+// Computed Properties
+const totalStudents = computed(() =>
+    props.classrooms.reduce((sum, item) => sum + (item.studentCount || 0), 0)
 );
 
-const searchQuery = ref('');
-const currentPage = ref(1);
-const itemsPerPage = 10;
+const availableRombels = computed(() => {
+    const list = props.classrooms.map(c => c.rombel);
+    return Array.from(new Set(list)).sort((a, b) => a - b);
+});
 
-watch(searchQuery, () => {
+// Client-side Filter (Dengan pemisahan status Tab & Kriteria Search/Dropdown)
+const filteredClassrooms = computed(() => {
+    return props.classrooms.filter((item) => {
+        // Tab check
+        const isTrashed = !!item.deleted_at;
+        if (activeTab.value === 'trashed' && !isTrashed) return false;
+        if (activeTab.value === 'active' && isTrashed) return false;
+
+        // Search & Dropdown filters
+        const q = searchQuery.value.toLowerCase();
+        const matchesSearch = !q || 
+            item.name.toLowerCase().includes(q) ||
+            item.level.toLowerCase().includes(q) ||
+            item.major?.name?.toLowerCase().includes(q) ||
+            item.major?.code?.toLowerCase().includes(q);
+
+        const matchesLevel = !selectedLevel.value || item.level === selectedLevel.value;
+        const matchesMajor = !selectedMajor.value || item.major?.id.toString() === selectedMajor.value;
+        const matchesRombel = !selectedRombel.value || item.rombel.toString() === selectedRombel.value;
+
+        return matchesSearch && matchesLevel && matchesMajor && matchesRombel;
+    });
+});
+
+// Auto reset page on filter change
+watch([searchQuery, selectedLevel, selectedMajor, selectedRombel, itemsPerPage], () => {
     currentPage.value = 1;
 });
 
-// Hanya mengambil kelas yang belum di-soft delete
-const nonDeletedClassrooms = computed(() => {
-    return classroomsList.value.filter(classroom => !classroom.isDeleted);
-});
-
-// Menghitung total seluruh siswa di sekolah (Hanya yang kelasnya Aktif & Tidak Terhapus)
-const totalAllStudentsInSchool = computed(() => 
-    nonDeletedClassrooms.value
-        .filter(c => c.status === 'Aktif')
-        .reduce((sum, c) => sum + c.studentCount, 0)
-);
-
-const totalClassesCount = computed(() => nonDeletedClassrooms.value.length);
-const activeClassesCount = computed(() => nonDeletedClassrooms.value.filter(c => c.status === 'Aktif').length);
-const inactiveClassesCount = computed(() => nonDeletedClassrooms.value.filter(c => c.status === 'Nonaktif').length);
-
-const activeClassesPercentage = computed(() => 
-    totalClassesCount.value > 0 ? Math.round((activeClassesCount.value / totalClassesCount.value) * 100) : 0
-);
-const inactiveClassesPercentage = computed(() => 
-    totalClassesCount.value > 0 ? 100 - activeClassesPercentage.value : 0
-);
-
-// Menghitung statistik kelas dan siswa per jurusan (Siswa nonaktif tidak ikut terhitung)
-const classesPerMajor = computed(() => {
-    return majors.map(m => {
-        const filteredClasses = nonDeletedClassrooms.value.filter(c => c.major.id === m.id);
-        const activeClassesOnly = filteredClasses.filter(c => c.status === 'Aktif');
-        
-        return {
-            id: m.id,
-            name: m.name,
-            code: m.code,
-            classCount: filteredClasses.length, // Total kelas terdaftar (Aktif + Nonaktif)
-            studentCount: activeClassesOnly.reduce((sum, c) => sum + c.studentCount, 0) // Hanya siswa dari kelas aktif
-        };
-    });
-});
-
-// Fitur pencarian fleksibel untuk mencari Nama, Tingkat, Jurusan, maupun Status (Aktif/Nonaktif/Terhapus)
-const filteredClassrooms = computed(() => {
-    const keyword = searchQuery.value.trim().toLowerCase();
-
-    if (!keyword) {
-return classroomsList.value;
-}
-
-    return classroomsList.value.filter((classroom) => {
-        const textToSearch = [
-            classroom.name, 
-            classroom.level, 
-            classroom.major.name,
-            classroom.isDeleted ? 'terhapus' : classroom.status
-        ];
-        
-        return textToSearch.some((value) =>
-            value.toLowerCase().includes(keyword)
-        );
-    });
-});
-
-const totalPages = computed(() => Math.ceil(filteredClassrooms.value.length / itemsPerPage));
+// Pagination Calculations
+const totalPages = computed(() => Math.ceil(filteredClassrooms.value.length / itemsPerPage.value) || 1);
 
 const paginatedClassrooms = computed(() => {
-    const start = (currentPage.value - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-
-    return filteredClassrooms.value.slice(start, end);
+    const start = (currentPage.value - 1) * itemsPerPage.value;
+    return filteredClassrooms.value.slice(start, start + itemsPerPage.value);
 });
 
-const prevPage = () => {
- if (currentPage.value > 1) {
-currentPage.value--;
-} 
-};
-const nextPage = () => {
- if (currentPage.value < totalPages.value) {
-currentPage.value++;
-} 
+const startIndex = computed(() => filteredClassrooms.value.length === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1);
+const endIndex = computed(() => Math.min(currentPage.value * itemsPerPage.value, filteredClassrooms.value.length));
+
+const isFilterActive = computed(() => !!(searchQuery.value || selectedLevel.value || selectedMajor.value || selectedRombel.value));
+
+const resetFilters = () => {
+    searchQuery.value = '';
+    selectedLevel.value = '';
+    selectedMajor.value = '';
+    selectedRombel.value = '';
 };
 
-// ==========================================
-// STATE & FUNGSI TAMBAH/EDIT KELAS
-// ==========================================
-const isModalOpen = ref(false);
-const modalMode = ref<'add' | 'edit'>('add');
-const formError = ref('');
+// Switch Tab Handler
+const switchTab = (tab: 'active' | 'trashed') => {
+    activeTab.value = tab;
+    currentPage.value = 1;
+    router.get('/classrooms', { tab, search: searchQuery.value }, { preserveState: true });
+};
 
-const form = ref({
-    id: 0,
-    level: 'X' as 'X' | 'XI' | 'XII' | 'XIII',
-    majorId: majors[0].id,
-    groupNumber: '1',
-    studentCount: 36,
-    status: 'Aktif' as 'Aktif' | 'Nonaktif'
+const selectedMajorCode = computed(() => {
+    const major = props.majors.find((m) => m.id === addForm.major_id);
+    return major ? major.code : 'JURUSAN';
 });
 
+// Modal Openers
 const openAddModal = () => {
-    modalMode.value = 'add';
-    formError.value = '';
-    form.value = {
-        id: 0,
-        level: 'X',
-        majorId: majors[0].id,
-        groupNumber: '1',
-        studentCount: 36,
-        status: 'Aktif'
-    };
-    isModalOpen.value = true;
+    addForm.reset();
+    addForm.clearErrors();
+    addForm.major_id = props.majors[0]?.id || '';
+    isAddModalOpen.value = true;
 };
 
-const openEditModal = (classroom: Classroom) => {
-    modalMode.value = 'edit';
-    formError.value = '';
-    
-    const nameParts = classroom.name.split(' ');
-    const groupNumber = nameParts.length > 2 ? nameParts[nameParts.length - 1] : '1';
-
-    form.value = {
-        id: classroom.id,
-        level: classroom.level,
-        majorId: classroom.major.id,
-        groupNumber,
-        studentCount: classroom.studentCount,
-        status: classroom.status
-    };
-    isModalOpen.value = true;
+const openEditModal = (item: Classroom) => {
+    selectedClassroom.value = item;
+    editForm.clearErrors();
+    editForm.major_id = item.major?.id || '';
+    editForm.level = item.level;
+    editForm.rombel = item.rombel;
+    editForm.status = item.status;
+    isEditModalOpen.value = true;
 };
 
-const saveClassroom = () => {
-    const selectedMajor = majors.find(m => m.id === Number(form.value.majorId));
-
-    if (!selectedMajor) {
-        formError.value = 'Jurusan tidak valid.';
-
-        return;
-    }
-
-    if (!form.value.groupNumber.toString().trim()) {
-        formError.value = 'Nomor kelompok rombel harus diisi!';
-
-        return;
-    }
-
-    const generatedName = `${form.value.level} ${selectedMajor.code} ${form.value.groupNumber.toString().trim().toUpperCase()}`;
-    const total = Number(form.value.studentCount) || 0;
-
-    if (modalMode.value === 'add') {
-        const newId = classroomsList.value.length > 0 ? Math.max(...classroomsList.value.map(c => c.id)) + 1 : 1;
-        
-        const maleRatio = getRandomMaleRatio(newId);
-        const mCount = Math.floor(total * maleRatio);
-        const fCount = total - mCount;
-
-        const religionDist = calculateReligionDistribution(total, newId);
-
-        classroomsList.value = [
-            {
-                id: newId,
-                name: generatedName,
-                level: form.value.level,
-                major: selectedMajor,
-                studentCount: total,
-                status: form.value.status,
-                maleCount: mCount,
-                femaleCount: fCount,
-                religion: religionDist,
-                isDeleted: false
-            },
-            ...classroomsList.value
-        ];
-    } else {
-        const index = classroomsList.value.findIndex(c => c.id === form.value.id);
-
-        if (index !== -1) {
-            const current = classroomsList.value[index];
-            
-            const maleRatio = getRandomMaleRatio(current.id);
-            const mCount = Math.floor(total * maleRatio);
-            const fCount = total - mCount;
-
-            const religionDist = calculateReligionDistribution(total, current.id);
-
-            classroomsList.value.splice(index, 1, {
-                ...current,
-                name: generatedName,
-                level: form.value.level,
-                major: selectedMajor,
-                studentCount: total,
-                status: form.value.status,
-                maleCount: mCount,
-                femaleCount: fCount,
-                religion: religionDist 
-            });
-            classroomsList.value = [...classroomsList.value];
-        }
-    }
-
-    isModalOpen.value = false;
+const openSoftDeleteModal = (item: Classroom) => {
+    selectedClassroom.value = item;
+    isDeleteModalOpen.value = true;
 };
 
-// 1. SOFT DELETE (Mengubah flag status data)
-const deleteClassroom = (id: number) => {
-    const classroom = classroomsList.value.find(c => c.id === id);
-
-    if (classroom) {
-        classroom.isDeleted = true;
-        classroomsList.value = [...classroomsList.value];
-    }
+const openForceDeleteModal = (item: Classroom) => {
+    selectedClassroom.value = item;
+    isForceDeleteModalOpen.value = true;
 };
 
-// RESTORE DATA DARI SOFT DELETE
-const restoreClassroom = (id: number) => {
-    const classroom = classroomsList.value.find(c => c.id === id);
-
-    if (classroom) {
-        classroom.isDeleted = false;
-        classroomsList.value = [...classroomsList.value];
-    }
-};
-
-// 2. HARD DELETE (Permanen hapus objek data)
-const hardDeleteClassroom = (id: number) => {
-    const confirmDelete = confirm("Apakah Anda yakin ingin menghapus kelas ini secara permanen? Tindakan ini tidak dapat dibatalkan.");
-
-    if (confirmDelete) {
-        classroomsList.value = classroomsList.value.filter(c => c.id !== id);
-    }
-};
-
-// ==========================================
-// STATE & DETAIL DEMOGRAFI KELAS
-// ==========================================
-const isStatusModalOpen = ref(false);
-const detailType = ref<'class' | 'major'>('class');
-
-const selectedClassroom = ref<Classroom | null>(null);
-const selectedMajorData = ref<{ id: number; name: string; code: string; studentCount: number } | null>(null);
-
-const openStatusDetail = (classroom: Classroom) => {
-    detailType.value = 'class';
-    selectedClassroom.value = classroom;
+const openStatusModal = (item: Classroom) => {
+    selectedClassroom.value = item;
     isStatusModalOpen.value = true;
 };
 
-const openMajorDetail = (majorItem: { id: number; name: string; code: string; studentCount: number }) => {
-    detailType.value = 'major';
-    selectedMajorData.value = majorItem;
-    isStatusModalOpen.value = true;
-};
-
-const selectedMajorStudentsByLevel = computed(() => {
-    if (!selectedMajorData.value) {
-return { X: 0, XI: 0, XII: 0, XIII: 0 };
-}
-    
-    const result = { X: 0, XI: 0, XII: 0, XIII: 0 };
-    // Hanya hitung siswa dari kelas yang aktif di jurusan ini
-    const activeMajorClassrooms = nonDeletedClassrooms.value.filter(
-        c => c.major.id === selectedMajorData.value?.id && c.status === 'Aktif'
-    );
-    
-    activeMajorClassrooms.forEach(c => {
-        if (c.level in result) {
-            result[c.level] += c.studentCount;
-        }
+// Actions
+const submitAdd = () => {
+    addForm.post('/classrooms', {
+        onSuccess: () => {
+            isAddModalOpen.value = false;
+            addForm.reset();
+        },
     });
-    
-    return result;
-});
+};
 
-const levelHighlights = computed(() => {
-    const data = selectedMajorStudentsByLevel.value;
-    const values = Object.values(data);
-    
-    const maxVal = Math.max(...values);
-    const minVal = Math.min(...values);
+const submitEdit = () => {
+    if (!selectedClassroom.value) return;
+    editForm.put(`/classrooms/${selectedClassroom.value.id}`, {
+        onSuccess: () => {
+            isEditModalOpen.value = false;
+        },
+    });
+};
 
-    return {
-        max: maxVal,
-        min: minVal
-    };
-});
+const submitSoftDelete = () => {
+    if (!selectedClassroom.value) return;
+    router.delete(`/classrooms/${selectedClassroom.value.id}`, {
+        onStart: () => { isDeleting.value = true; },
+        onSuccess: () => {
+            isDeleteModalOpen.value = false;
+            selectedClassroom.value = null;
+        },
+        onFinish: () => { isDeleting.value = false; },
+    });
+};
 
-const malePercentage = computed(() => {
-    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) {
-return 0;
-}
+const submitRestore = (item: Classroom) => {
+    router.post(`/classrooms/${item.id}/restore`, {}, {
+        onStart: () => { restoringId.value = item.id; },
+        onFinish: () => { restoringId.value = null; },
+    });
+};
 
-    return Math.round((selectedClassroom.value.maleCount / selectedClassroom.value.studentCount) * 100);
-});
-
-const femalePercentage = computed(() => {
-    if (!selectedClassroom.value || selectedClassroom.value.studentCount === 0) {
-return 0;
-}
-
-    return 100 - malePercentage.value; 
-});
-
-const majorPercentage = computed(() => {
-    if (!selectedMajorData.value || totalAllStudentsInSchool.value === 0) {
-return 0;
-}
-
-    return Math.round((selectedMajorData.value.studentCount / totalAllStudentsInSchool.value) * 100);
-});
-
-const radius = 40;
-const circumference = 2 * Math.PI * radius;
-
-const strokeDashoffset = computed(() => {
-    if (detailType.value === 'class') {
-        return circumference - (malePercentage.value / 100) * circumference;
-    } else {
-        return circumference - (majorPercentage.value / 100) * circumference;
-    }
-});
+const submitForceDelete = () => {
+    if (!selectedClassroom.value) return;
+    router.delete(`/classrooms/${selectedClassroom.value.id}/force-delete`, {
+        onStart: () => { isForceDeleting.value = true; },
+        onSuccess: () => {
+            isForceDeleteModalOpen.value = false;
+            selectedClassroom.value = null;
+        },
+        onFinish: () => { isForceDeleting.value = false; },
+    });
+};
 </script>
 
 <template>
-    <Head title="Manajemen Kelas" />
+    <Head title="Data Kelas" />
 
-    <div class="p-6 space-y-6 max-w-7xl mx-auto">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-5">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight flex items-center gap-2">
-                    <School class="h-6 w-6 text-neutral-500" />
-                    Daftar Kelas & Demografi
-                </h1>
-                <p class="text-sm text-muted-foreground">
-                    Kelola data rombel aktif dan monitor status keaktifan kelas dengan mudah.
-                </p>
-            </div>
+    <div class="min-h-screen bg-neutral-50/50 p-6 dark:bg-neutral-900/50">
+        <div class="mx-auto max-w-7xl space-y-6">
             
-            <Button 
-                @click="openAddModal"
-                class="inline-flex items-center gap-2 bg-neutral-900 dark:bg-neutral-50 hover:bg-neutral-800 dark:hover:bg-neutral-200 text-white dark:text-neutral-900 text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm cursor-pointer"
-            >
-                <Plus class="h-4 w-4" />
-                Tambah Kelas
-            </Button>
-        </div>
-
-        <div class="space-y-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Total Kelas & Siswa Aktif Per Jurusan</h3>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                <div 
-                    v-for="item in classesPerMajor" 
-                    :key="item.code" 
-                    @click="openMajorDetail(item)"
-                    class="p-4 bg-white dark:bg-neutral-900 border rounded-xl shadow-sm space-y-2 cursor-pointer hover:shadow-md hover:border-neutral-400 dark:hover:border-neutral-700 transition-all active:scale-[0.98] select-none"
-                >
-                    <div class="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        <span>{{ item.code }}</span>
-                        <GraduationCap class="h-4 w-4 text-neutral-400" />
-                    </div>
-                    <div>
-                        <div class="text-xl font-bold">{{ item.classCount }} <span class="text-xs font-normal text-muted-foreground">Kelas</span></div>
-                        <div class="text-xs text-neutral-500 flex items-center gap-1 mt-0.5">
-                            <Users class="h-3 w-3" /> {{ item.studentCount.toLocaleString('id-ID') }} Siswa Aktif
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid gap-6 md:grid-cols-1">
-            <div class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow-sm space-y-4">
-                <div class="flex items-center justify-between border-b pb-2.5">
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-2">
-                        <CheckCircle2 class="h-4 w-4 text-emerald-500" />
-                        Status Keaktifan Kelas
-                    </h3>
-                    <span class="text-xs font-semibold text-neutral-400">{{ totalClassesCount }} Rombel</span>
-                </div>
-                
-                <div class="grid gap-6 md:grid-cols-2">
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between text-xs font-medium">
-                            <span>Aktif (Siswa Terhitung)</span>
-                            <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ activeClassesCount }} Kelas ({{ activeClassesPercentage }}%)</span>
-                        </div>
-                        <div class="h-3 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                            <div 
-                                class="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                                :style="{ width: activeClassesPercentage + '%' }"
-                            ></div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between text-xs font-medium">
-                            <span>Nonaktif (Siswa Diabaikan)</span>
-                            <span class="font-bold text-rose-600 dark:text-rose-400">{{ inactiveClassesCount }} Kelas ({{ inactiveClassesPercentage }}%)</span>
-                        </div>
-                        <div class="h-3 w-full bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                            <div 
-                                class="h-full bg-rose-500 rounded-full transition-all duration-500" 
-                                :style="{ width: inactiveClassesPercentage + '%' }"
-                            ></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm">
-            <div class="p-5 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h3 class="font-semibold text-neutral-900 dark:text-neutral-100">Rombongan Belajar</h3>
-                    <p class="text-xs text-muted-foreground">Kelola data rombel. Kolom pencarian mendukung pencarian status "Aktif", "Nonaktif", atau "Terhapus".</p>
+                    <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                        Manajemen Kelas
+                    </h1>
+                    <p class="text-sm text-neutral-500 dark:text-neutral-400">
+                        Kelola rombel kelas dengan penomoran otomatis dan fitur tempat sampah.
+                    </p>
                 </div>
-                <div class="relative w-full sm:w-80">
-                    <Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input 
-                        v-model="searchQuery" 
-                        class="pl-9" 
-                        placeholder="Cari kelas, jurusan, atau status (aktif/nonaktif)..." 
-                    />
+                <Button class="gap-2" @click="openAddModal">
+                    <Plus class="size-4" />
+                    Tambah Kelas Baru
+                </Button>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-neutral-500">Total Rombel Kelas</span>
+                        <div class="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
+                            <School class="size-5" />
+                        </div>
+                    </div>
+                    <div class="mt-3 text-2xl font-bold">{{ classrooms.length }} Kelas</div>
+                </div>
+
+                <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-neutral-500">Total Siswa Terdaftar</span>
+                        <div class="rounded-lg bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                            <Users class="size-5" />
+                        </div>
+                    </div>
+                    <div class="mt-3 text-2xl font-bold">{{ totalStudents }} Siswa</div>
+                </div>
+
+                <div class="rounded-xl border bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1 dark:border-neutral-800 dark:bg-neutral-900">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-neutral-500">Total Jurusan</span>
+                        <div class="rounded-lg bg-violet-50 p-2 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
+                            <GraduationCap class="size-5" />
+                        </div>
+                    </div>
+                    <div class="mt-3 text-2xl font-bold">{{ majors.length }} Jurusan</div>
                 </div>
             </div>
 
-            <div class="overflow-x-auto w-full">
-                <table class="w-full text-left border-collapse table-fixed min-w-[800px]">
-                    <thead>
-                        <tr class="bg-neutral-50 dark:bg-neutral-800/50 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wider">
-                            <th class="px-2 py-4 w-16 text-center">No</th>
-                            <th class="px-6 py-4 w-32">Tingkat</th> 
-                            <th class="px-6 py-4 w-45">Nama Kelas</th>
-                            <th class="px-6 py-4">Jurusan</th>
-                            <th class="px-6 py-4 w-36">Status</th> 
-                            <th class="px-6 py-4 w-36 text-right">Total Siswa</th>
-                            <th class="px-6 py-4 w-32 text-right">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 text-sm text-neutral-700 dark:text-neutral-300">
-                        <template v-if="filteredClassrooms.length > 0">
-                            <tr 
-                                v-for="(classroom, index) in paginatedClassrooms" 
-                                :key="classroom.id"
-                                class="h-[61px] border-b transition-all duration-300 last:border-0 hover:bg-muted/30"
-                                :class="{ 'opacity-40 bg-neutral-50/50 dark:bg-neutral-950/20 select-none': classroom.isDeleted }"
+            <div class="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
+                <button
+                    @click="switchTab('active')"
+                    :class="[
+                        'px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                        activeTab === 'active' 
+                            ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900' 
+                            : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                    ]"
+                >
+                    Kelas Aktif
+                </button>
+                <button
+                    @click="switchTab('trashed')"
+                    :class="[
+                        'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
+                        activeTab === 'trashed' 
+                            ? 'bg-rose-600 text-white' 
+                            : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+                    ]"
+                >
+                    <Archive class="size-4" />
+                    Tempat Sampah
+                    <Badge v-if="trashedCount > 0" variant="secondary" class="ml-1">
+                        {{ trashedCount }}
+                    </Badge>
+                </button>
+            </div>
+
+            <div class="rounded-xl border bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                
+                <div class="flex flex-col gap-3 border-b p-4 dark:border-neutral-800 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="relative w-full lg:w-72">
+                        <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
+                        <Input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Cari nama kelas / jurusan..."
+                            class="pl-9"
+                        />
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1.5 text-xs text-neutral-500 font-medium mr-1">
+                            <Filter class="size-3.5" /> Filter:
+                        </div>
+
+                        <select
+                            v-model="selectedLevel"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
+                        >
+                            <option value="">Semua Tingkat</option>
+                            <option value="X">Tingkat X</option>
+                            <option value="XI">Tingkat XI</option>
+                            <option value="XII">Tingkat XII</option>
+                        </select>
+
+                        <select
+                            v-model="selectedMajor"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
+                        >
+                            <option value="">Semua Jurusan</option>
+                            <option v-for="m in majors" :key="m.id" :value="m.id.toString()">
+                                {{ m.code }} - {{ m.name }}
+                            </option>
+                        </select>
+
+                        <select
+                            v-model="selectedRombel"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
+                        >
+                            <option value="">Semua Rombel</option>
+                            <option v-for="r in availableRombels" :key="r" :value="r.toString()">
+                                Rombel {{ r }}
+                            </option>
+                        </select>
+
+                        <Button
+                            v-if="isFilterActive"
+                            variant="ghost"
+                            size="sm"
+                            class="h-9 gap-1 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400"
+                            @click="resetFilters"
+                        >
+                            <X class="size-3.5" />
+                            Reset
+                        </Button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-neutral-50 text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400">
+                            <tr>
+                                <th class="px-6 py-3 font-medium">Nama Kelas</th>
+                                <th class="px-6 py-3 font-medium">Tingkat</th>
+                                <th class="px-6 py-3 font-medium">Rombel</th>
+                                <th class="px-6 py-3 font-medium">Jurusan</th>
+                                <th class="px-6 py-3 font-medium">Jumlah Siswa</th>
+                                <th class="px-6 py-3 font-medium">Status</th>
+                                <th class="px-6 py-3 text-right font-medium">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y dark:divide-neutral-800">
+                            <tr
+                                v-for="item in paginatedClassrooms"
+                                :key="item.id"
+                                class="transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50"
                             >
-                                <td class="px-2 py-4 text-center font-semibold text-neutral-500 w-16">
-                                    {{ ((currentPage - 1) * itemsPerPage) + index + 1 }}
+                                <td class="px-6 py-4 font-semibold text-neutral-900 dark:text-neutral-100">
+                                    {{ item.name }}
                                 </td>
-                                <td class="px-6 py-4 truncate w-28">
-                                    <Badge :variant="classroom.isDeleted ? 'outline' : 'secondary'">
-                                        Kelas {{ classroom.level }}
+                                <td class="px-6 py-4">
+                                    <Badge variant="outline">{{ item.level }}</Badge>
+                                </td>
+                                <td class="px-6 py-4 font-medium">
+                                    Rombel {{ item.rombel }}
+                                </td>
+                                <td class="px-6 py-4 text-neutral-600 dark:text-neutral-300">
+                                    {{ item.major?.name || '-' }} ({{ item.major?.code || '-' }})
+                                </td>
+                                <td class="px-6 py-4 font-medium tabular-nums">
+                                    {{ item.studentCount }} Siswa
+                                </td>
+                                <td class="px-6 py-4">
+                                    <Badge :variant="item.status === 'Aktif' ? 'default' : 'secondary'">
+                                        {{ item.status }}
                                     </Badge>
                                 </td>
-                                <td 
-                                    class="px-6 py-4 font-bold truncate w-45 text-neutral-900 dark:text-neutral-100"
-                                    :class="{ 'line-through text-neutral-400': classroom.isDeleted }"
-                                >
-                                    {{ classroom.name }}
-                                </td>
-                                <td class="px-6 py-4 text-muted-foreground min-w-0">
-                                    <div class="flex items-center gap-3 min-w-0">
-                                        <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                            <GraduationCap class="size-4" />
-                                        </div>
-                                        <span class="font-medium text-foreground truncate block">{{ classroom.major.name }}</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 truncate w-28">
-                                    <Badge 
-                                        :variant="classroom.isDeleted ? 'outline' : (classroom.status === 'Aktif' ? 'default' : 'secondary')"
-                                    >
-                                        {{ classroom.isDeleted ? 'Terhapus' : classroom.status }}
-                                    </Badge>
-                                </td>
-                                <td 
-                                    class="px-6 py-4 text-right tabular-nums truncate w-36 font-semibold"
-                                    :class="[classroom.status === 'Nonaktif' || classroom.isDeleted ? 'text-neutral-400 italic font-normal text-xs' : 'text-neutral-900 dark:text-neutral-100']"
-                                >
-                                    {{ classroom.studentCount.toLocaleString('id-ID') }} Siswa
-                                    <span v-if="classroom.status === 'Nonaktif' && !classroom.isDeleted" class="block text-[10px] text-rose-500 font-medium">(Tak Terhitung)</span>
-                                </td>
-                                <td class="px-6 py-4 text-right w-32">
-                                    <div v-if="classroom.isDeleted" class="flex justify-end gap-1">
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            class="cursor-pointer text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-                                            title="Pulihkan Kelas"
-                                            @click="restoreClassroom(classroom.id)"
-                                        >
-                                            <RotateCcw class="size-4" />
-                                        </Button>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="icon" 
-                                            class="cursor-pointer text-destructive hover:bg-destructive/10"
-                                            title="Hapus Permanen"
-                                            @click="hardDeleteClassroom(classroom.id)"
-                                        >
-                                            <Trash2 class="size-4" />
-                                        </Button>
-                                    </div>
-                                    <DropdownMenu v-else>
-                                        <DropdownMenuTrigger as-child>
-                                            <Button variant="ghost" size="icon" class="cursor-pointer">
-                                                <MoreHorizontal class="size-4" />
-                                                <span class="sr-only">Aksi {{ classroom.name }}</span>
+                                <td class="px-6 py-4 text-right">
+                                    <template v-if="activeTab === 'active'">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger as-child>
+                                                <Button variant="ghost" size="icon">
+                                                    <MoreHorizontal class="size-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem @click="openStatusModal(item)">
+                                                    <Info class="mr-2 size-4" /> Detail Statistik
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem @click="openEditModal(item)">
+                                                    <Pencil class="mr-2 size-4" /> Edit
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    class="text-rose-600 dark:text-rose-400"
+                                                    @click="openSoftDeleteModal(item)"
+                                                >
+                                                    <Trash2 class="mr-2 size-4" /> Pindahkan ke Sampah
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </template>
+
+                                    <template v-else>
+                                        <div class="flex items-center justify-end gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                class="gap-1.5 text-emerald-600 hover:text-emerald-700"
+                                                :disabled="restoringId === item.id"
+                                                @click="submitRestore(item)"
+                                            >
+                                                <Loader2 v-if="restoringId === item.id" class="size-3.5 animate-spin" />
+                                                <RotateCcw v-else class="size-3.5" />
+                                                {{ restoringId === item.id ? 'Memulihkan...' : 'Pulihkan' }}
                                             </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-40">
-                                            <DropdownMenuItem @click="openStatusDetail(classroom)" class="cursor-pointer">
-                                                <Info class="mr-2 size-3.5 text-indigo-500" />
-                                                Lihat Demografi
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem @click="openEditModal(classroom)" class="cursor-pointer">
-                                                <Pencil class="mr-2 size-3.5" />
-                                                Edit
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem @click="deleteClassroom(classroom.id)" class="text-destructive focus:text-destructive cursor-pointer">
-                                                <Trash2 class="mr-2 size-3.5" />
-                                                Hapus
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                class="gap-1.5"
+                                                @click="openForceDeleteModal(item)"
+                                            >
+                                                <Trash2 class="size-3.5" />
+                                                Hapus Permanen
+                                            </Button>
+                                        </div>
+                                    </template>
                                 </td>
                             </tr>
+                            <tr v-if="filteredClassrooms.length === 0">
+                                <td colspan="7" class="p-8 text-center text-neutral-500">
+                                    Data kelas tidak ditemukan.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="flex flex-col gap-3 border-t p-4 dark:border-neutral-800 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-4 text-xs text-neutral-500">
+                        <span>
+                            Menampilkan <strong>{{ startIndex }}</strong> - <strong>{{ endIndex }}</strong> dari <strong>{{ filteredClassrooms.length }}</strong> data
+                        </span>
+                        
+                        <div class="flex items-center gap-1.5">
+                            <span>Per Halaman:</span>
+                            <select
+                                v-model="itemsPerPage"
+                                class="h-7 rounded border border-neutral-200 bg-white px-2 py-0 text-xs dark:border-neutral-800 dark:bg-neutral-900"
+                            >
+                                <option :value="5">5</option>
+                                <option :value="10">10</option>
+                                <option :value="25">25</option>
+                                <option :value="50">50</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            class="size-8"
+                            :disabled="currentPage === 1"
+                            @click="currentPage--"
+                        >
+                            <ChevronLeft class="size-4" />
+                        </Button>
+
+                        <template v-for="page in totalPages" :key="page">
+                            <Button
+                                v-if="page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1"
+                                :variant="currentPage === page ? 'default' : 'outline'"
+                                size="sm"
+                                class="h-8 min-w-8 px-2 text-xs"
+                                @click="currentPage = page"
+                            >
+                                {{ page }}
+                            </Button>
+                            <span v-else-if="page === 2 && currentPage > 3" class="px-1 text-xs text-neutral-400">...</span>
+                            <span v-else-if="page === totalPages - 1 && currentPage < totalPages - 2" class="px-1 text-xs text-neutral-400">...</span>
                         </template>
 
-                        <tr v-else class="h-[61px]">
-                            <td colspan="7" class="px-6 text-center text-muted-foreground italic">
-                                Rombel, jurusan, atau status yang dicari tidak ditemukan.
-                            </td>
-                        </tr>
-
-                        <tr 
-                            v-for="emptyRow in (itemsPerPage - (paginatedClassrooms.length || 1))" 
-                            :key="'blank-' + emptyRow"
-                            class="h-[61px] border-b last:border-0 bg-transparent"
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            class="size-8"
+                            :disabled="currentPage === totalPages || totalPages === 0"
+                            @click="currentPage++"
                         >
-                            <td class="w-16 px-2"></td>
-                            <td class="w-28"></td>
-                            <td class="w-45"></td>
-                            <td></td> 
-                            <td class="w-28"></td>
-                            <td class="w-36"></td>
-                            <td class="w-32"></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="px-6 py-4 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/20 flex items-center justify-between">
-                <span class="text-xs text-muted-foreground">
-                    Menampilkan <b>{{ filteredClassrooms.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1 }}</b> - <b>{{ Math.min(currentPage * itemsPerPage, filteredClassrooms.length) }}</b> dari <b>{{ filteredClassrooms.length }}</b> data hasil pencarian.
-                </span>
-
-                <div class="flex items-center gap-2">
-                    <button 
-                        @click="prevPage" 
-                        :disabled="currentPage === 1"
-                        class="p-2 border rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors cursor-pointer"
-                    >
-                        <ChevronLeft class="h-4 w-4" />
-                    </button>
-                    
-                    <span class="text-sm font-medium px-2 text-neutral-700 dark:text-neutral-300">
-                        {{ currentPage }} / {{ totalPages || 1 }}
-                    </span>
-
-                    <button 
-                        @click="nextPage" 
-                        :disabled="currentPage === totalPages || totalPages === 0"
-                        class="p-2 border rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50 transition-colors cursor-pointer"
-                    >
-                        <ChevronRight class="h-4 w-4" />
-                    </button>
+                            <ChevronRight class="size-4" />
+                        </Button>
+                    </div>
                 </div>
+
             </div>
         </div>
     </div>
 
-    <Dialog v-model:open="isModalOpen">
-        <DialogContent class="sm:max-w-[425px]">
+    <Dialog v-model:open="isAddModalOpen">
+        <DialogContent>
             <DialogHeader>
-                <DialogTitle>{{ modalMode === 'add' ? 'Tambah Kelas' : 'Edit Kelas' }}</DialogTitle>
+                <DialogTitle>Tambah Kelas Baru</DialogTitle>
                 <DialogDescription>
-                    Silakan isi detail kelas di bawah ini. Kelas akan terbentuk otomatis berdasarkan Tingkat, Kode Jurusan, dan Kelompok.
+                    Pilih tingkat dan jurusan. Nomor rombel akan dibuat secara otomatis.
                 </DialogDescription>
             </DialogHeader>
 
-            <div class="grid gap-4 py-4">
-                <p v-if="formError" class="text-sm font-medium text-destructive bg-destructive/10 p-2 rounded-lg text-center">
-                    {{ formError }}
-                </p>
-
-                <div class="grid gap-2">
-                    <Label for="level" class="text-left font-medium">Tingkat Kelas <span class="text-destructive">*</span></Label>
+            <form @submit.prevent="submitAdd" class="space-y-4">
+                <div class="space-y-2">
+                    <Label for="add-level">Tingkat Kelas</Label>
                     <select
-                        id="level"
-                        v-model="form.level"
-                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        id="add-level"
+                        v-model="addForm.level"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
                     >
-                        <option value="X">Kelas X</option>
-                        <option value="XI">Kelas XI</option>
-                        <option value="XII">Kelas XII</option>
-                        <option value="XIII">Kelas XIII</option>
+                        <option value="X">Tingkat X</option>
+                        <option value="XI">Tingkat XI</option>
+                        <option value="XII">Tingkat XII</option>
                     </select>
                 </div>
 
-                <div class="grid gap-2">
-                    <Label for="major" class="text-left font-medium">Kompetensi Keahlian (Jurusan) <span class="text-destructive">*</span></Label>
+                <div class="space-y-2">
+                    <Label for="add-major">Jurusan</Label>
                     <select
-                        id="major"
-                        v-model="form.majorId"
-                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        id="add-major"
+                        v-model="addForm.major_id"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
                     >
-                        <option v-for="major in majors" :key="major.id" :value="major.id">
-                            {{ major.code }} - {{ major.name }}
+                        <option value="" disabled>Pilih Jurusan</option>
+                        <option v-for="m in majors" :key="m.id" :value="m.id">
+                            {{ m.code }} - {{ m.name }}
                         </option>
                     </select>
                 </div>
 
-                <div class="grid gap-2">
-                    <Label for="groupNumber" class="text-left font-medium">Kelompok / Rombel <span class="text-destructive">*</span></Label>
+                <div v-if="addForm.major_id" class="rounded-lg bg-blue-50 p-3 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                    Sistem akan otomatis menentukan rombel berikutnya untuk <strong>{{ addForm.level }} {{ selectedMajorCode }}</strong>.
+                </div>
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="isAddModalOpen = false">Batal</Button>
+                    <Button type="submit" :disabled="addForm.processing">
+                        <Loader2 v-if="addForm.processing" class="mr-2 size-4 animate-spin" />
+                        Simpan Kelas
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isEditModalOpen">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Kelas</DialogTitle>
+                <DialogDescription>
+                    Ubah informasi kelas {{ selectedClassroom?.name }}.
+                </DialogDescription>
+            </DialogHeader>
+
+            <form @submit.prevent="submitEdit" class="space-y-4">
+                <div class="space-y-2">
+                    <Label for="edit-level">Tingkat Kelas</Label>
+                    <select
+                        id="edit-level"
+                        v-model="editForm.level"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
+                    >
+                        <option value="X">Tingkat X</option>
+                        <option value="XI">Tingkat XI</option>
+                        <option value="XII">Tingkat XII</option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <Label for="edit-major">Jurusan</Label>
+                    <select
+                        id="edit-major"
+                        v-model="editForm.major_id"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
+                    >
+                        <option v-for="m in majors" :key="m.id" :value="m.id">
+                            {{ m.code }} - {{ m.name }}
+                        </option>
+                    </select>
+                </div>
+
+                <div class="space-y-2">
+                    <Label for="edit-rombel">Nomor Rombel</Label>
                     <Input
-                        id="groupNumber"
-                        v-model="form.groupNumber"
-                        placeholder="Contoh: 1, 2, atau A"
+                        id="edit-rombel"
+                        type="number"
+                        v-model="editForm.rombel"
+                        min="1"
+                        max="20"
                         required
                     />
                 </div>
 
-                <div class="grid gap-2">
-                    <Label for="studentCount" class="text-left font-medium">Jumlah Siswa</Label>
-                    <Input
-                        id="studentCount"
-                        type="number"
-                        v-model="form.studentCount"
-                        placeholder="Masukkan total siswa"
-                        min="0"
-                    />
-                </div>
-
-                <div class="grid gap-2">
-                    <Label for="status" class="text-left font-medium">Status Kelas</Label>
+                <div class="space-y-2">
+                    <Label for="edit-status">Status</Label>
                     <select
-                        id="status"
-                        v-model="form.status"
-                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        id="edit-status"
+                        v-model="editForm.status"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
                     >
                         <option value="Aktif">Aktif</option>
                         <option value="Nonaktif">Nonaktif</option>
                     </select>
                 </div>
-            </div>
 
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="isEditModalOpen = false">Batal</Button>
+                    <Button type="submit" :disabled="editForm.processing">
+                        <Loader2 v-if="editForm.processing" class="mr-2 size-4 animate-spin" />
+                        Simpan Perubahan
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isDeleteModalOpen">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Pindahkan ke Tempat Sampah?</DialogTitle>
+                <DialogDescription>
+                    Kelas <strong>{{ selectedClassroom?.name }}</strong> akan dipindahkan ke tempat sampah.
+                </DialogDescription>
+            </DialogHeader>
             <DialogFooter>
-                <Button type="button" variant="outline" @click="isModalOpen = false">
-                    Batal
+                <Button type="button" variant="outline" :disabled="isDeleting" @click="isDeleteModalOpen = false">Batal</Button>
+                <Button variant="destructive" :disabled="isDeleting" @click="submitSoftDelete">
+                    <Loader2 v-if="isDeleting" class="mr-2 size-4 animate-spin" />
+                    {{ isDeleting ? 'Memindahkan...' : 'Ya, Pindahkan' }}
                 </Button>
-                <Button type="button" @click="saveClassroom">
-                    Simpan Perubahan
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open="isForceDeleteModalOpen">
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle class="text-rose-600">Hapus Secara Permanen?</DialogTitle>
+                <DialogDescription>
+                    Apakah Anda yakin ingin menghapus kelas <strong>{{ selectedClassroom?.name }}</strong> secara permanen? Data tidak dapat dikembalikan.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button type="button" variant="outline" :disabled="isForceDeleting" @click="isForceDeleteModalOpen = false">Batal</Button>
+                <Button variant="destructive" :disabled="isForceDeleting" @click="submitForceDelete">
+                    <Loader2 v-if="isForceDeleting" class="mr-2 size-4 animate-spin" />
+                    {{ isForceDeleting ? 'Menghapus...' : 'Hapus Permanen' }}
                 </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
 
     <Dialog v-model:open="isStatusModalOpen">
-        <DialogContent class="sm:max-w-[450px]">
+        <DialogContent class="sm:max-w-md">
             <DialogHeader>
-                <DialogTitle class="flex items-center gap-2 text-lg font-bold">
-                    <Info class="h-5 w-5 text-indigo-500" />
-                    <span v-if="detailType === 'class'">Demografi Kelas: {{ selectedClassroom?.name }}</span>
-                    <span v-else>Statistik Jurusan: {{ selectedMajorData?.code }}</span>
-                </DialogTitle>
+                <DialogTitle>Statistik {{ selectedClassroom?.name }}</DialogTitle>
                 <DialogDescription>
-                    <span v-if="detailType === 'class'">Rasio perbandingan gender siswa serta rincian pemeluk agama di dalam kelas pilihan.</span>
-                    <span v-else>Rincian sebaran siswa dan kontribusi total dari kompetensi keahlian terkait.</span>
+                    Rincian data komposisi siswa berdasarkan jenis kelamin dan agama.
                 </DialogDescription>
             </DialogHeader>
 
-            <div v-if="detailType === 'class' && selectedClassroom" class="space-y-6 py-4 flex flex-col items-center">
-                <div class="relative flex items-center justify-center">
-                    <svg class="w-32 h-32 transform -rotate-90">
-                        <circle
-                            cx="64"
-                            cy="64"
-                            :r="radius"
-                            stroke="currentColor"
-                            stroke-width="8"
-                            fill="transparent"
-                            class="text-pink-400 dark:text-pink-500/40"
-                        />
-                        <circle
-                            cx="64"
-                            cy="64"
-                            :r="radius"
-                            stroke="currentColor"
-                            stroke-width="8"
-                            fill="transparent"
-                            :stroke-dasharray="circumference"
-                            :stroke-dashoffset="strokeDashoffset"
-                            stroke-linecap="round"
-                            class="text-blue-500 dark:text-blue-400 transition-all duration-700 ease-in-out"
-                        />
-                    </svg>
-                    <div class="absolute flex flex-col items-center bg-white dark:bg-neutral-900 px-2 py-1 rounded-md">
-                        <span class="text-xs font-bold text-blue-600 dark:text-blue-400">
-                            L: {{ malePercentage }}%
-                        </span>
-                        <div class="w-8 h-[1px] bg-neutral-200 dark:bg-neutral-700 my-0.5"></div>
-                        <span class="text-xs font-bold text-pink-600 dark:text-pink-400">
-                            P: {{ femalePercentage }}%
-                        </span>
-                    </div>
-                </div>
-
-                <div class="w-full grid grid-cols-2 gap-4 text-center px-4">
-                    <div class="p-2.5 rounded-lg border bg-blue-50/50 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40">
-                        <span class="text-xs text-blue-600 dark:text-blue-400 font-medium block">Laki-Laki (L)</span>
-                        <span class="text-lg font-bold text-blue-700 dark:text-blue-300">
-                            {{ selectedClassroom.maleCount }} <span class="text-xs font-normal">Siswa</span>
-                        </span>
-                        <span class="text-xs font-bold block text-blue-500 mt-0.5">({{ malePercentage }}%)</span>
-                    </div>
-                    <div class="p-2.5 rounded-lg border bg-pink-50/50 dark:bg-pink-950/10 border-pink-100 dark:border-pink-900/40">
-                        <span class="text-xs text-pink-600 dark:text-pink-400 font-medium block">Perempuan (P)</span>
-                        <span class="text-lg font-bold text-pink-700 dark:text-pink-300">
-                            {{ selectedClassroom.femaleCount }} <span class="text-xs font-normal">Siswi</span>
-                        </span>
-                        <span class="text-xs font-bold block text-pink-500 mt-0.5">({{ femalePercentage }}%)</span>
-                    </div>
-                </div>
-
-                <hr class="w-full border-neutral-200 dark:border-neutral-800" />
-
-                <div class="w-full space-y-3">
-                    <h4 class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">
-                        Distribusi Agama Kelas
-                    </h4>
-                    
-                    <div class="space-y-2">
-                        <div v-for="(count, key) in selectedClassroom.religion" :key="key" class="flex justify-between items-center text-sm border-b pb-1.5 border-neutral-100 dark:border-neutral-800/80">
-                            <span class="font-medium text-neutral-600 dark:text-neutral-400 capitalize">{{ key }}</span>
-                            <span class="font-bold tabular-nums text-neutral-800 dark:text-neutral-200">
-                                {{ count }} Siswa
-                            </span>
+            <div v-if="selectedClassroom" class="space-y-4 py-2">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Jenis Kelamin</span>
+                    <div class="mt-2 grid grid-cols-2 gap-3 text-center">
+                        <div class="rounded-lg bg-blue-50 p-3 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                            <div class="text-xs font-medium">Laki-laki</div>
+                            <div class="mt-1 text-xl font-bold">{{ selectedClassroom.maleCount }}</div>
+                        </div>
+                        <div class="rounded-lg bg-pink-50 p-3 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300">
+                            <div class="text-xs font-medium">Perempuan</div>
+                            <div class="mt-1 text-xl font-bold">{{ selectedClassroom.femaleCount }}</div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div v-else-if="detailType === 'major' && selectedMajorData" class="space-y-6 py-4 flex flex-col items-center">
-                <div class="relative flex items-center justify-center">
-                    <svg class="w-32 h-32 transform -rotate-90">
-                        <circle
-                            cx="64"
-                            cy="64"
-                            :r="radius"
-                            stroke="currentColor"
-                            stroke-width="8"
-                            fill="transparent"
-                            class="text-neutral-100 dark:text-neutral-800"
-                        />
-                        <circle
-                            cx="64"
-                            cy="64"
-                            :r="radius"
-                            stroke="currentColor"
-                            stroke-width="8"
-                            fill="transparent"
-                            :stroke-dasharray="circumference"
-                            :stroke-dashoffset="strokeDashoffset"
-                            stroke-linecap="round"
-                            class="text-indigo-600 dark:text-indigo-400 transition-all duration-700 ease-in-out"
-                        />
-                    </svg>
-                    <div class="absolute flex flex-col items-center">
-                        <span class="text-2xl font-black tracking-tight text-neutral-900 dark:text-neutral-100">
-                            {{ majorPercentage }}%
-                        </span>
-                        <span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                            Rasio Siswa Aktif
-                        </span>
-                    </div>
-                </div>
-
-                <div class="w-full text-center px-4 space-y-4">
-                    <p class="text-sm leading-relaxed text-neutral-600 dark:text-neutral-400">
-                        Jurusan <b>{{ selectedMajorData.name }} ({{ selectedMajorData.code }})</b> memiliki kontribusi total sebanyak <b>{{ selectedMajorData.studentCount.toLocaleString('id-ID') }} siswa aktif</b> terhitung, setara dengan <b>{{ majorPercentage }}%</b> dari total seluruh siswa aktif di sekolah ini.
-                    </p>
-
-                    <div class="border rounded-xl p-4 bg-neutral-50/50 dark:bg-neutral-800/30 text-left space-y-3">
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Jumlah Siswa Per Kelas (Hanya Kelas Aktif)</h4>
-                        
-                        <div class="space-y-2">
-                            <div 
-                                v-for="(count, level) in selectedMajorStudentsByLevel" 
-                                :key="level"
-                                class="flex justify-between items-center text-sm border-b pb-1 last:border-0 last:pb-0"
-                            >
-                                <span class="font-medium text-neutral-600 dark:text-neutral-400">Kelas {{ level }}</span>
-                                <span 
-                                    class="font-bold tabular-nums transition-colors"
-                                    :class="{
-                                        'text-emerald-600 dark:text-emerald-400': count === levelHighlights.max && levelHighlights.max !== levelHighlights.min,
-                                        'text-rose-600 dark:text-rose-400': count === levelHighlights.min && levelHighlights.max !== levelHighlights.min,
-                                        'text-neutral-800 dark:text-neutral-200': count !== levelHighlights.max && count !== levelHighlights.min
-                                    }"
-                                >
-                                    {{ count }} Siswa
-                                </span>
-                            </div>
+                <div class="border-t pt-3 dark:border-neutral-800">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-neutral-500">Distribusi Agama</span>
+                    <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Islam:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.islam || 0 }}</strong>
+                        </div>
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Kristen:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.kristen || 0 }}</strong>
+                        </div>
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Katolik:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.katolik || 0 }}</strong>
+                        </div>
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Hindu:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.hindu || 0 }}</strong>
+                        </div>
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Buddha:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.buddha || 0 }}</strong>
+                        </div>
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
+                            <span>Khonghucu:</span>
+                            <strong class="font-bold">{{ selectedClassroom.religion?.khonghucu || 0 }}</strong>
                         </div>
                     </div>
                 </div>
             </div>
 
             <DialogFooter>
-                <Button type="button" class="w-full" @click="isStatusModalOpen = false">
-                    Tutup Statistik
-                </Button>
+                <Button type="button" class="w-full" @click="isStatusModalOpen = false">Tutup Statistik</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

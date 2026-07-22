@@ -51,6 +51,7 @@ return new class extends Migration
 
             $table->string('code',20);
             $table->string('name');
+            $table->enum('status', ['Aktif', 'Nonaktif'])->default('Aktif');
             $table->timestamps();
 
             $table->unique(['school_id','code']);
@@ -69,8 +70,11 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->string('name');
-            $table->enum('level',['X','XI','XII','XIII']);
+            $table->enum('level',['X','XI','XII']);
+            $table->integer('rombel');
+            $table->enum('status', ['Aktif', 'Nonaktif'])->default('Aktif');
             $table->timestamps();
+            $table->softDeletes();
         });
 
         /*
