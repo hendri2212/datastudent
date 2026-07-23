@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, GraduationCap, LayoutGrid, School } from '@lucide/vue';
+import { BookOpen, FolderGit2, GraduationCap, LayoutGrid, School, Users } from '@lucide/vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -15,8 +15,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { index as classroomsIndex } from '@/routes/classrooms'; 
 import { index as majorsIndex } from '@/routes/majors';
+import { index as classroomsIndex } from '@/routes/classrooms';
+import { index as studentsIndex } from '@/routes/students';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -32,9 +33,14 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Kelas',
-        href: classroomsIndex(), 
-        icon: School,        
+        href: classroomsIndex(),
+        icon: School,
     },
+    {
+        title: 'Siswa',
+        href: studentsIndex(),
+        icon: Users,
+    }
 ];
 
 
