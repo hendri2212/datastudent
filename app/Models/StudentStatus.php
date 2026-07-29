@@ -5,16 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Gender extends Model
+class StudentStatus extends Model
 {
-    protected $table = 'genders';
+    public $timestamps = false;
 
     protected $guarded = ['id'];
 
-    public $timestamps = false;
-
     public function students(): HasMany
     {
-        return $this->hasMany(Student::class);
+        return $this->hasMany(Student::class, 'student_status_id');
     }
 }

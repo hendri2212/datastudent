@@ -5,13 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Gender extends Model
+class AcademicYear extends Model
 {
-    protected $table = 'genders';
-
     protected $guarded = ['id'];
 
-    public $timestamps = false;
+    protected $casts = [
+        'is_active' => 'boolean',
+        'start_date' => 'date',
+        'end_date' => 'date',
+    ];
 
     public function students(): HasMany
     {

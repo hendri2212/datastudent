@@ -5,16 +5,21 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Gender extends Model
+class BloodType extends Model
 {
-    protected $table = 'genders';
-
-    protected $guarded = ['id'];
-
     public $timestamps = false;
+
+    protected $fillable = [
+        'name',
+    ];
 
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);
+    }
+
+    public function studentHealths(): HasMany
+    {
+        return $this->hasMany(StudentHealth::class);
     }
 }

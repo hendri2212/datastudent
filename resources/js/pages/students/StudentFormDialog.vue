@@ -1,558 +1,823 @@
-<template>
-  <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-3xl max-h-[85vh] overflow-y-auto p-5 text-xs bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800">
-      <DialogHeader class="border-b pb-2">
-        <DialogTitle class="text-sm font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
-          <FileText class="size-4 text-indigo-600" />
-          {{ form.id ? 'Perbarui Relasi & Data Pokok Siswa' : 'Form Registrasi Siswa Baru (Multi-Tabel)' }}
-        </DialogTitle>
-        <DialogDescription class="text-[10px] mt-0.5">
-          Data formulir dipetakan langsung ke tabel `students`, `student_family`, `student_education_history`, `student_healths`, dan `student_documents`.
-        </DialogDescription>
-      </DialogHeader>
-
-      <div class="py-3 space-y-4">
-        <div v-if="form.is_locked" class="p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 rounded-lg flex items-start gap-2">
-          <Lock class="size-4 shrink-0 mt-0.5" />
-          <p class="leading-relaxed">
-            <strong>Status Data Terkunci (is_locked = true):</strong> Kolom Pokok Akademik dan Dokumen Resmi di bawah ini tidak dapat diubah tanpa izin otorisasi Super Admin. Hubungi Kepala Urusan Administrasi Tata Usaha untuk membuka kunci data.
-          </p>
-        </div>
-
-        <div class="space-y-3">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <UserCheck class="size-3.5 text-neutral-500" /> I. Informasi Dasar & Identitas Pokok Murid
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nama Lengkap Murid</label>
-              <Input v-model="form.name" type="text" placeholder="Masukkan nama sesuai ijazah" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" :disabled="form.is_locked" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nomor Induk Siswa (NIS)</label>
-              <Input v-model="form.nis" type="text" placeholder="Contoh: 22001" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" :disabled="form.is_locked" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">NISN (10 Digit Resmi)</label>
-              <Input v-model="form.nisn" type="text" placeholder="Contoh: 0071234567" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" :disabled="form.is_locked" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Tempat Lahir</label>
-              <Input v-model="form.birth_place" type="text" placeholder="Kotabaru" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Tanggal Lahir</label>
-              <Input v-model="form.birth_date" type="date" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Jenis Kelamin</label>
-              <select v-model="form.gender_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option v-for="g in internalGenders" :key="g.id" :value="g.id">{{ g.name }}</option>
-              </select>
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Agama</label>
-              <select v-model="form.religion_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option v-for="r in internalReligions" :key="r.id" :value="r.id">{{ r.name }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Email Akun Murid</label>
-              <Input v-model="form.email" type="email" placeholder="nama@student.sch.id" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nomor Handphone Aktif (WhatsApp)</label>
-              <Input v-model="form.phone" type="text" placeholder="08XXXXXXXXXX" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
-                <Instagram class="size-3 text-neutral-500" /> URL Profil Instagram
-              </label>
-              <Input v-model="form.instagram_url" type="url" placeholder="https://instagram.com/username" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
-                <Globe class="size-3 text-neutral-500" /> URL LinkedIn / Media Sosial Lain
-              </label>
-              <Input v-model="form.linkedin_url" type="url" placeholder="https://linkedin.com/in/username" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-
-          <div class="space-y-1">
-            <label class="font-bold text-neutral-600 dark:text-neutral-400">Alamat Rumah Domisili Lengkap (Sesuai KK)</label>
-            <textarea v-model="form.address" rows="2" placeholder="Tuliskan nama jalan, RT, RW, Kelurahan, Kecamatan, dan Kabupaten/Kota" class="w-full text-xs p-2 border border-neutral-200 dark:border-neutral-800 rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
-          </div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <School class="size-3.5 text-neutral-500" /> II. Pemetaan Relasi Kelas & Kompetensi Keahlian
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Kompetensi Keahlian / Jurusan (`major_id` FK)</label>
-              <select v-model="form.major_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500" :disabled="form.is_locked">
-                <option v-for="m in internalMajors" :key="m.id" :value="m.id">[{{ m.code }}] {{ m.name }}</option>
-              </select>
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Penempatan Kelas (`classroom_id` FK)</label>
-              <select v-model="form.classroom_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500" :disabled="form.is_locked">
-                <option v-for="c in internalClassrooms" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Status Keaktifan (`student_status_id` FK)</label>
-              <select v-model="form.student_status_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                <option v-for="s in internalStudentStatuses" :key="s.id" :value="s.id">{{ s.name }}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <Users class="size-3.5 text-neutral-500" /> III. Entitas Hubungan Keluarga & Orang Tua (`student_family`)
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="p-3 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-700/60 rounded-xl space-y-2">
-              <span class="text-[10px] font-bold text-neutral-400 block tracking-wide">JALUR AYAH KANDUNG</span>
-              <div class="space-y-1">
-                <label class="font-medium text-neutral-600 dark:text-neutral-400">Nama Lengkap Ayah</label>
-                <Input v-model="form.family.father_name" type="text" placeholder="Nama ayah kandung" class="h-8 text-xs bg-white dark:bg-neutral-950" />
-              </div>
-              <div class="space-y-1">
-                <label class="font-medium text-neutral-600 dark:text-neutral-400">No. Telp Ayah</label>
-                <Input v-model="form.family.father_phone" type="text" placeholder="08XXXXXXXXXX" class="h-8 text-xs font-mono bg-white dark:bg-neutral-950" />
-              </div>
-            </div>
-
-            <div class="p-3 bg-neutral-50 dark:bg-neutral-800 border border-neutral-100 dark:border-neutral-700/60 rounded-xl space-y-2">
-              <span class="text-[10px] font-bold text-neutral-400 block tracking-wide">JALUR IBU KANDUNG</span>
-              <div class="space-y-1">
-                <label class="font-medium text-neutral-600 dark:text-neutral-400">Nama Lengkap Ibu</label>
-                <Input v-model="form.family.mother_name" type="text" placeholder="Nama ibu kandung" class="h-8 text-xs bg-white dark:bg-neutral-950" />
-              </div>
-              <div class="space-y-1">
-                <label class="font-medium text-neutral-600 dark:text-neutral-400">No. Telp Ibu</label>
-                <Input v-model="form.family.mother_phone" type="text" placeholder="08XXXXXXXXXX" class="h-8 text-xs font-mono bg-white dark:bg-neutral-950" />
-              </div>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nama Wali Murid</label>
-              <Input v-model="form.family.guardian_name" type="text" placeholder="Nama wali" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">No. Telp Wali Murid</label>
-              <Input v-model="form.family.guardian_phone" type="text" placeholder="08XXXXXXXXXX" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-amber-50/40 dark:bg-neutral-800/40 border border-amber-100/70 dark:border-neutral-700/60 rounded-xl mt-3">
-            <div class="space-y-1">
-              <label class="font-bold text-amber-800 dark:text-neutral-400">Nama Kontak Darurat</label>
-              <Input v-model="form.family.emergency_contact_name" type="text" placeholder="Contoh: Paman / Kakak Kandung" class="w-full h-8 text-xs bg-white dark:bg-neutral-950 rounded-lg" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-amber-800 dark:text-neutral-400">No. HP Darurat</label>
-              <Input v-model="form.family.emergency_contact_phone" type="text" placeholder="08XXXXXXXXXX" class="w-full h-8 text-xs font-mono bg-white dark:bg-neutral-950 rounded-lg" />
-            </div>
-          </div>
-          </div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <ClipboardList class="size-3.5 text-neutral-500" /> IV. Riwayat Pendidikan Sebelumnya (`student_education_history`)
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="space-y-1 md:col-span-2">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nama Sekolah Asal (SMP / MTs)</label>
-              <Input v-model="form.education_history.school_name" type="text" placeholder="Masukkan nama sekolah asal resmi" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">NPSN Asal Sekolah</label>
-              <Input v-model="form.education_history.npsn" type="text" placeholder="Contoh: 30102040" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Tahun Masuk</label>
-              <Input v-model="form.education_history.entry_year" type="text" placeholder="Contoh: 2021" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Tahun Lulus</label>
-              <Input v-model="form.education_history.graduation_year" type="text" placeholder="Contoh: 2024" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Nilai Akhir Ujian</label>
-              <Input v-model="form.education_history.final_score" type="text" placeholder="Contoh: 85.50" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-        </div>
-
-       <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <Heart class="size-3.5 text-neutral-500" /> V. Informasi Kondisi Kesehatan Fisik & Medis (`student_healths`)
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Tinggi Badan <span class="text-[10px] text-neutral-400">(Centimeter)</span></label>
-              <Input v-model="form.health.height" type="text" placeholder="Contoh: 165" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Berat Badan <span class="text-[10px] text-neutral-400">(Kilogram)</span></label>
-              <Input v-model="form.health.weight" type="text" placeholder="Contoh: 55" class="h-8 text-xs font-mono rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Golongan Darah</label>
-                <select v-model="form.health.blood_type_id" class="w-full h-8 text-xs px-2 border rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border-neutral-200 dark:border-neutral-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
-                    <option :value="1">A</option>
-                    <option :value="2">B</option>
-                    <option :value="3">AB</option>
-                    <option :value="4">O</option>
-                </select>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Daftar Kontraindikasi Alergi Medis</label>
-              <Input v-model="form.health.allergies" type="text" placeholder="Tulis tidak ada jika bersih" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Riwayat Penyakit Bawaan Kronis</label>
-              <Input v-model="form.health.medical_history" type="text" placeholder="Contoh: Asma, Jantung, dll (Tulis tidak ada jika bersih)" class="h-8 text-xs rounded-lg bg-neutral-50 dark:bg-neutral-950" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-200/60 dark:border-neutral-700/60 rounded-xl">
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Fasilitas Kesehatan Rujukan Utama</label>
-              <Input v-model="form.health.hospital" type="text" placeholder="Contoh: RSUD Kota Sehat" class="h-8 text-xs bg-white dark:bg-neutral-950 rounded-lg" />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-neutral-600 dark:text-neutral-400">Dokter / PIC Penanggung Jawab</label>
-              <Input v-model="form.health.doctor" type="text" placeholder="Contoh: dr. Budi Santoso" class="h-8 text-xs bg-white dark:bg-neutral-950 rounded-lg" />
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-neutral-700 dark:text-neutral-300 border-b pb-1 flex items-center gap-1">
-            <FileArchive class="size-3.5 text-neutral-500" /> VI. Unggah Dokumen Pendukung Resmi (`student_documents`)
-          </h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div v-for="docType in ['Kartu Keluarga (KK)', 'Akta Kelahiran', 'Ijazah SD', 'Ijazah SMP', 'KTP / KIA']" :key="docType" class="p-3 bg-neutral-50 dark:bg-neutral-800 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 flex flex-col justify-center gap-2">
-              <span class="text-[10px] font-bold text-neutral-700 dark:text-neutral-300">{{ docType }}</span>
-              <div class="flex items-center gap-2">
-                <label :class="['cursor-pointer bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-[9px] font-semibold px-2 py-1.5 rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 transition whitespace-nowrap text-neutral-600 dark:text-neutral-300', form.is_locked ? 'opacity-50 cursor-not-allowed' : '']">
-                  Pilih Berkas
-                  <input type="file" class="hidden" accept=".pdf,.jpg,.jpeg,.png" @change="(e) => handleSpecificFileChange(e, docType)" :disabled="form.is_locked" />
-                </label>
-                <span class="text-[9px] text-neutral-500 truncate max-w-[150px]" :title="getDocumentName(docType)">
-                  {{ getDocumentName(docType) || 'Belum ada berkas' }}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-4 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-          
-          <div class="space-y-2">
-            <div class="flex items-center justify-between border-b pb-1">
-              <h3 class="font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1">
-                <Award class="size-3.5 text-emerald-600" /> VII. Rekam Jejak Penghargaan & Prestasi
-              </h3>
-              <Button type="button" variant="outline" class="h-6 text-[10px] px-2 text-emerald-600 border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 hover:bg-emerald-50" @click="addAchievementRow">
-                + Tambah Prestasi
-              </Button>
-            </div>
-            
-            <div v-if="form.achievements?.length > 0" class="space-y-2">
-              <div v-for="ach in form.achievements" :key="ach.id" class="p-3 bg-emerald-50/30 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/50 rounded-xl space-y-2 relative">
-                <Button type="button" variant="ghost" class="absolute top-2 right-2 h-6 w-6 p-0 text-neutral-400 hover:text-red-500 rounded-full" @click="removeAchievementRow(ach)">
-                  <X class="size-3.5" />
-                </Button>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 pr-6">
-                  <div class="space-y-1">
-                    <label class="font-semibold text-[10px] text-neutral-500">Nama/Judul Prestasi</label>
-                    <Input v-model="ach.title" type="text" placeholder="Contoh: Juara 1 LKS Web Tech" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                  </div>
-                  <div class="space-y-1">
-                    <label class="font-semibold text-[10px] text-neutral-500">Kategori / Bidang</label>
-                    <Input v-model="ach.category" type="text" placeholder="Contoh: AKADEMIK" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div class="space-y-1">
-                      <label class="font-semibold text-[10px] text-neutral-500">Tingkat Skala</label>
-                      <Input v-model="ach.level" type="text" placeholder="Nasional/Provinsi" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                    </div>
-                    <div class="space-y-1">
-                      <label class="font-semibold text-[10px] text-neutral-500">Peringkat</label>
-                      <Input v-model="ach.rank" type="text" placeholder="Juara 1" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-neutral-400 p-3 text-center border border-dashed rounded-xl bg-neutral-50/30 text-[11px]">
-              Belum ada data prestasi yang dimasukkan untuk siswa ini.
-            </div>
-          </div>
-
-          <div class="space-y-2 pt-2">
-            <div class="flex items-center justify-between border-b pb-1">
-              <h3 class="font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1">
-                <AlertTriangle class="size-3.5 text-red-600" /> VIII. Catatan Pelanggaran Tata Tertib & Disiplin 
-              </h3>
-              <Button type="button" variant="outline" class="h-6 text-[10px] px-2 text-red-600 border-red-200 dark:border-red-900 bg-red-50/50 hover:bg-red-50" @click="addViolationRow">
-                + Tambah Pelanggaran
-              </Button>
-            </div>
-            
-            <div v-if="form.violations?.length > 0" class="space-y-2">
-              <div v-for="violation in form.violations" :key="violation.id" class="p-3 bg-red-50/30 dark:bg-red-950/10 border border-red-100 dark:border-red-900/50 rounded-xl space-y-2 relative">
-                <Button type="button" variant="ghost" class="absolute top-2 right-2 h-6 w-6 p-0 text-neutral-400 hover:text-red-500 rounded-full" @click="removeViolationRow(violation)">
-                  <X class="size-3.5" />
-                </Button>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 pr-6">
-                  <div class="space-y-1 md:col-span-1">
-                    <label class="font-semibold text-[10px] text-neutral-500">Nama Pelanggaran</label>
-                    <Input v-model="violation.title" type="text" placeholder="Contoh: Terlambat Masuk Sekolah" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                  </div>
-                  <div class="space-y-1">
-                    <label class="font-semibold text-[10px] text-neutral-500">Tanggal Kejadian</label>
-                    <Input v-model="violation.violation_date" type="date" class="h-7 text-xs bg-white dark:bg-neutral-950" />
-                  </div>
-                  <div class="space-y-1">
-                    <label class="font-semibold text-[10px] text-neutral-500">Bobot Akumulasi Poin</label>
-                    <Input v-model.number="violation.point" type="number" placeholder="5" class="h-7 text-xs font-mono bg-white dark:bg-neutral-950" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else class="text-neutral-400 p-3 text-center border border-dashed rounded-xl bg-neutral-50/30 text-[11px]">
-              Siswa bersih. Bebas dari catatan poin akumulasi pelanggaran kedisiplinan.
-            </div>
-          </div>
-        </div>
-      
-
-      <DialogFooter class="border-t pt-2 gap-2">
-        <Button variant="outline" @click="isOpen = false" class="h-8 text-xs font-bold rounded-lg px-4 border-neutral-200 dark:border-neutral-800">Batalkan Pengisian</Button>
-        <Button @click="handleSubmit" class="h-8 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 shadow-sm">
-          {{ form.id ? 'Simpan Perubahan Relasi' : 'Kirim & Sinkronkan Relasi' }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-</template>
-
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { useForm } from '@inertiajs/vue3';
+import { 
+    Loader2, 
+    User, 
+    Users, 
+    History, 
+    HeartPulse, 
+    Trophy, 
+    FileText,
+    Share2,
+    Plus,
+    Trash2,
+    Shield,
+} from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+// Import Types
 import { 
-  FileText, 
-  Lock, 
-  UserCheck, 
-  School, 
-  Users, 
-  ClipboardList, 
-  Heart, 
-  FileArchive,
-  AlertTriangle,    
-  Globe      // Tambahan Icon Sosial Media / Umum
-} from '@lucide/vue';
+    Student, 
+    School, 
+    Major, 
+    Classroom, 
+    AcademicYear, 
+    MasterOption, 
+    MasterOptionCode, 
+    EducationLevel, 
+    SocialPlatform,
+    DocumentType,
+} from './types';
 
-const props = defineProps({
-  open: Boolean,
-  student: Object
-});
+const props = defineProps<{
+    show: boolean;
+    student: Student | null;
+    schools?: School[];
+    majors?: Major[];
+    classrooms?: Classroom[];
+    academicYears?: AcademicYear[];
+    genders?: MasterOptionCode[];
+    religions?: MasterOption[];
+    studentStatuses?: MasterOption[];
+    bloodTypes?: MasterOption[];
+    occupations?: MasterOption[];
+    incomeCategories?: MasterOption[];
+    citizenships?: MasterOption[];
+    educationLevels?: EducationLevel[];
+    socialPlatforms?: SocialPlatform[];
+    relationshipTypes?: MasterOption[];
+    documentTypes?: DocumentType[];
+}>();
 
-const emit = defineEmits(['update:open', 'submit']);
+const emit = defineEmits(['close']);
 
-// Master Data Relasi Internal Dokumen Komponen (Lookup Master)
-const internalMajors = [
-  { id: 1, name: 'Rekayasa Perangkat Lunak', code: 'RPL', head: 'Ir. H. Budi Utomo, M.T.' },
-  { id: 2, name: 'Akuntansi dan Keuangan Lembaga', code: 'AKL', head: 'Hj. Siti Aminah, S.E., M.Ak.' },
-  { id: 3, name: 'Desain Komunikasi Visual', code: 'DKV', head: 'Rendra Wijaya, S.Sn., M.Ds.' },
-  { id: 4, name: 'Teknik Komputer dan Jaringan', code: 'TKJ', head: 'Anwar Sadat, S.Kom., M.Cs.' }
-];
-// Selaraskan juga internalClassrooms jika diperlukan agar pilihan kelasnya sinkron
-const internalClassrooms = [
-  { id: 1, name: 'X RPL 1', major_id: 1, grade: 'X' },
-  { id: 2, name: 'XI RPL 1', major_id: 1, grade: 'XI' },
-  { id: 3, name: 'XII RPL 1', major_id: 1, grade: 'XII' },
-  { id: 4, name: 'X AKL 1', major_id: 2, grade: 'X' },
-  { id: 5, name: 'XI AKL 1', major_id: 2, grade: 'XI' },
-  { id: 6, name: 'XII AKL 1', major_id: 2, grade: 'XII' },
-  { id: 7, name: 'XII DKV 1', major_id: 3, grade: 'XII' },
-  { id: 8, name: 'XII TKJ 1', major_id: 4, grade: 'XII' }
-];
+const activeTab = ref('biodata');
 
-const internalReligions = [
-  { id: 1, name: 'Islam' }, { id: 2, name: 'Kristen Protestan' }, { id: 3, name: 'Katolik' }, { id: 4, name: 'Hindu' }, { id: 5, name: 'Buddha' }
-];
-const internalGenders = [
-  { id: 1, name: 'Laki-laki' }, { id: 2, name: 'Perempuan' }
-];
-const internalStudentStatuses = [
-  { id: 1, name: 'Aktif' }, { id: 2, name: 'Pindah' }, { id: 3, name: 'Lulus' }, { id: 4, name: 'Keluar (DO)' }
-];
-
-// Sinkronisasi state internal modal
-const isOpen = computed({
-  get: () => props.open,
-  set: (val) => emit('update:open', val)
-});
-
-// Penampung State Formulir Basis Data
-const form = ref<any>(getInitialFormState());
-
-// Pemetaan Data Ketika Mode Ubah (Edit) Dipicu
-watch(() => props.student, (newStudent) => {
-  if (newStudent) {
-    form.value = JSON.parse(JSON.stringify(newStudent));
-    
-    // Pastikan relasi turunan tabel sudah terbentuk agar tidak melempar error undefined
-    if (!form.value.family) form.value.family = { father_name: '', father_phone: '', mother_name: '', mother_phone: '', guardian_name: '', guardian_phone: '' };
-    if (!form.value.education_history) form.value.education_history = { school_name: '', npsn: '', final_score: '0.00' };
-    if (!form.value.health) form.value.health = { height: '', weight: '', blood_type_id: 1, allergies: '' };
-    if (!form.value.documents) form.value.documents = [];
-  } else {
-    form.value = getInitialFormState();
-  }
-}, { immediate: true });
-
-// Fungsi Handler Penghargaan & Prestasi
-function addAchievementRow() {
-  form.value.achievements.push({
-    id: 'ach-' + Math.random().toString(36).substring(2, 9),
-    title: '',
-    category: 'AKADEMIK',
-    level: 'Kota',
-    rank: 'Juara 1'
-  });
-}
-
-function removeAchievementRow(targetAch: any) {
-  form.value.achievements = form.value.achievements.filter((a: any) => a.id !== targetAch.id);
-}
-
-// Fungsi Handler Catatan Pelanggaran
-function addViolationRow() {
-  form.value.violations.push({
-    id: 'vio-' + Math.random().toString(36).substring(2, 9),
-    title: '',
-    violation_date: new Date().toISOString().substring(0, 10),
-    point: 5
-  });
-}
-
-function removeViolationRow(targetViolation: any) {
-  form.value.violations = form.value.violations.filter((v: any) => v.id !== targetViolation.id);
-}
-
-function getInitialFormState() {
-  return {
-    id: null,
-    name: '',
-    nis: '',
+// Form State
+const form = useForm({
+    school_id: '' as number | string,
+    major_id: '' as number | string,
+    classroom_id: '' as number | string,
+    academic_year_id: '' as number | string,
+    gender_id: '' as number | string,
+    religion_id: '' as number | string,
+    student_status_id: '' as number | string,
+    citizenship_id: '' as number | string,
     nisn: '',
-    email: '',
-    phone: '',
-    instagram_url: '', // Tambahan State Instagram
-    linkedin_url: '',  // Tambahan State LinkedIn / Medsos lain
+    nis: '',
+    full_name: '',
+    nickname: '',
     birth_place: '',
     birth_date: '',
+    phone: '',
+    email: '',
     address: '',
-    notes: '',
-    is_locked: false,
+    postal_code: '',
+    document_type_id: '' as number | string,
     
-    classroom_id: 1,
-    major_id: 1,
-    religion_id: 1,
-    gender_id: 1,
-    student_status_id: 1,
-    
-    classroom: internalClassrooms[0],
-    major: internalMajors[0],
-    religion: internalReligions[0],
-    gender: internalGenders[0],
-    student_status: internalStudentStatuses[0],
-    
-    family: { father_name: '', father_phone: '', mother_name: '', mother_phone: '', guardian_name: '', guardian_phone: '' },
-    education_history: { school_name: '', npsn: '', final_score: '0.00' },
-    health: { height: '', weight: '', blood_type_id: 1, allergies: '' },
-    documents: []
-  };
-}
+    // Family Object
+    family: {
+        father_name: '',
+        father_occupation_id: '' as number | string,
+        father_income_category_id: '' as number | string,
+        father_phone: '',
+        mother_name: '',
+        mother_occupation_id: '' as number | string,
+        mother_income_category_id: '' as number | string,
+        mother_phone: '',
+        guardian_name: '',
+        guardian_occupation_id: '' as number | string,
+        guardian_income_category_id: '' as number | string,
+        guardian_phone: '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
+        relationship_type_id: '' as number | string,
+        notes: '',
+    },
 
-// Menangani unggahan file secara spesifik berdasarkan tipe berkas
-function handleSpecificFileChange(event: Event, type: string) {
-  const target = event.target as HTMLInputElement;
-  if (target.files && target.files.length > 0) {
-    const file = target.files[0];
-    
-    if (!form.value.documents) {
-      form.value.documents = [];
-    }
-    
-    // Hapus berkas lama dengan tipe yang sama agar tidak menumpuk di array
-    form.value.documents = form.value.documents.filter((d: any) => d.type !== type);
-    
-    // Push berkas baru yang diunggah ke array skema relasi dokumen
-    form.value.documents.push({
-      id: Math.floor(Math.random() * 10000),
-      type: type,
-      original_name: file.name,
-      file_path: URL.createObjectURL(file) // Menggunakan blob lokal sebagai representasi path berkas sementara
+    // Health Object (Lengkap Sesuai Migration student_healths)
+    health: {
+        blood_type_id: '' as number | string,
+        height: '' as number | string,
+        weight: '' as number | string,
+        allergies: '',
+        medical_history: '',
+        disabilities: '',
+        medications: '',
+        hospital: '',
+        doctor: '',
+        notes: '',
+    },
+
+    // Dynamic Lists
+    education_histories: [] as any[],
+    socials: [] as any[],
+    achievements: [] as any[],
+    violations: [] as any[],
+
+    // File Document
+    new_document_name: '',
+    new_document_file: null as File | null,
+});
+
+// Watcher sync data
+watch(
+    () => props.student,
+    (newStudent) => {
+        if (newStudent) {
+            form.school_id = newStudent.school_id || '';
+            form.major_id = newStudent.major_id || '';
+            form.classroom_id = newStudent.classroom_id || '';
+            form.academic_year_id = newStudent.academic_year_id || '';
+            form.gender_id = newStudent.gender_id || '';
+            form.religion_id = newStudent.religion_id || '';
+            form.student_status_id = newStudent.student_status_id || '';
+            form.nisn = newStudent.nisn || '';
+            form.nis = newStudent.nis || '';
+            form.full_name = newStudent.full_name || '';
+            form.nickname = newStudent.nickname || '';
+            form.birth_place = newStudent.birth_place || '';
+            form.birth_date = newStudent.birth_date || '';
+            form.phone = newStudent.phone || '';
+            form.email = newStudent.email || '';
+            form.address = newStudent.address || '';
+            form.postal_code = newStudent.postal_code || '';
+            form.citizenship_id = newStudent.citizenship_id || '';
+            form.document_type_id = newStudent.document_type_id || '';
+
+            // Fill Family
+            if (newStudent.family) {
+                form.family.father_name = newStudent.family.father_name || '';
+                form.family.father_occupation_id = newStudent.family.father_occupation_id || '';
+                form.family.father_income_category_id = newStudent.family.father_income_category_id || '';
+                form.family.father_phone = newStudent.family.father_phone || '';
+                form.family.mother_name = newStudent.family.mother_name || '';
+                form.family.mother_occupation_id = newStudent.family.mother_occupation_id || '';
+                form.family.mother_income_category_id = newStudent.family.mother_income_category_id || '';
+                form.family.mother_phone = newStudent.family.mother_phone || '';
+                form.family.guardian_name = newStudent.family.guardian_name || '';
+                form.family.guardian_occupation_id = newStudent.family.guardian_occupation_id || '';
+                form.family.guardian_income_category_id = newStudent.family.guardian_income_category_id || '';
+                form.family.guardian_phone = newStudent.family.guardian_phone || '';
+                form.family.emergency_contact_name = newStudent.family.emergency_contact_name || '';
+                form.family.emergency_contact_phone = newStudent.family.emergency_contact_phone || '';
+                form.family.relationship_type_id = newStudent.family.relationship_type_id || '';
+                form.family.notes = newStudent.family.notes || '';
+            }
+
+            // Fill Health (Lengkap)
+            if (newStudent.health) {
+                form.health.blood_type_id = newStudent.health.blood_type_id || '';
+                form.health.height = newStudent.health.height || '';
+                form.health.weight = newStudent.health.weight || '';
+                form.health.allergies = newStudent.health.allergies || '';
+                form.health.medical_history = newStudent.health.medical_history || '';
+                form.health.disabilities = newStudent.health.disabilities || '';
+                form.health.medications = newStudent.health.medications || '';
+                form.health.hospital = newStudent.health.hospital || '';
+                form.health.doctor = newStudent.health.doctor || '';
+                form.health.notes = newStudent.health.notes || '';
+            }
+
+            // Fill Arrays
+            form.education_histories = newStudent.education_histories 
+                ? newStudent.education_histories.map(edu => ({
+                    ...edu,
+                    is_graduated: edu.is_graduated ?? true
+                })) 
+                : [];
+            form.socials = newStudent.socials ? [...newStudent.socials] : [];
+            form.achievements = newStudent.achievements ? [...newStudent.achievements] : [];
+            form.violations = newStudent.violations ? [...newStudent.violations] : [];
+        } else {
+            form.reset();
+        }
+    },
+    { immediate: true }
+);
+
+// Helpers Dinamis
+const addEducation = () => {
+    form.education_histories.push({
+        education_level_id: '',
+        school_name: '',
+        npsn: '',
+        address: '',
+        entry_year: '',
+        graduation_year: '',
+        final_score: '',
+        is_graduated: true,
+        notes: ''
     });
-  }
-}
+};
 
-// Mengambil nama berkas yang telah dipilih berdasarkan tipenya
-function getDocumentName(type: string) {
-  if (!form.value.documents) return '';
-  const doc = form.value.documents.find((d: any) => d.type === type);
-  return doc ? doc.original_name : '';
-}
+const removeEducation = (index: number) => {
+    form.education_histories.splice(index, 1);
+};
 
+const addSocial = () => {
+    form.socials.push({
+        social_platform_id: '',
+        username: '',
+        url: '',
+    });
+};
 
+const removeSocial = (index: number) => {
+    form.socials.splice(index, 1);
+};
 
-// Submit Form handler
-function handleSubmit() {
-  // Map ID pilihan ke Objek Relasi lengkap sebelum dikirim ke repositori
-  form.value.major = internalMajors.find(m => m.id === Number(form.value.major_id)) || internalMajors[0];
-  form.value.classroom = internalClassrooms.find(c => c.id === Number(form.value.classroom_id)) || internalClassrooms[0];
-  form.value.religion = internalReligions.find(r => r.id === Number(form.value.religion_id)) || internalReligions[0];
-  form.value.gender = internalGenders.find(g => g.id === Number(form.value.gender_id)) || internalGenders[0];
-  form.value.student_status = internalStudentStatuses.find(s => s.id === Number(form.value.student_status_id)) || internalStudentStatuses[0];
-  
-  emit('submit', form.value);
-}
+const addAchievement = () => {
+    form.achievements.push({
+        title: '',
+        organizer: '',
+        level: '',
+        category: '',
+        rank: '',
+        achievement_date: '',
+        description: '',
+    });
+};
+
+const removeAchievement = (index: number) => {
+    form.achievements.splice(index, 1);
+};
+
+const normalizeScoreInput = (edu: any) => {
+    if (edu.final_score === null || edu.final_score === undefined || edu.final_score === '') {
+        edu.final_score = '';
+        return;
+    }
+
+    const numericOnly = String(edu.final_score).replace(/[^0-9]/g, '');
+    if (!numericOnly) {
+        edu.final_score = '';
+        return;
+    }
+
+    if (numericOnly.length <= 2) {
+        edu.final_score = Number(numericOnly).toString();
+        return;
+    }
+
+    const integerPart = numericOnly.slice(0, numericOnly.length - 2);
+    const decimalPart = numericOnly.slice(-2);
+    const normalized = Number(`${integerPart}.${decimalPart}`);
+    edu.final_score = normalized.toFixed(2);
+};
+
+const addViolation = () => {
+    form.violations.push({
+        title: '',
+        point: '',
+        violation_date: '',
+        description: '',
+    });
+};
+
+const removeViolation = (index: number) => {
+    form.violations.splice(index, 1);
+};
+
+const handleClose = () => {
+    // 1. Blokir jika sedang loading/submit
+    if (form.processing) return;
+    
+    // 2. Hapus pesan error validasi (tanpa mengosongkan data)
+    form.clearErrors();
+    
+    // 3. Reset tab ke default
+    activeTab.value = 'biodata';
+    
+    // 4. Emit event close ke parent component
+    emit('close');
+};
+
+const handleSubmit = () => {
+    if (props.student && props.student.id) {
+        form.put(`/students/${props.student.id}`);
+    } else {
+        form.post('/students');
+    }
+};
+
 </script>
+
+<template>
+    <Dialog :open="props.show" @update:open="(val) => !val && handleClose()">
+        <DialogContent class="sm:max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-0">
+            <DialogHeader class="p-6 pb-2 border-b border-neutral-200 dark:border-neutral-800">
+                <DialogTitle>
+                    {{ props.student ? 'Edit Data Siswa' : 'Tambah Siswa Baru' }}
+                </DialogTitle>
+                <DialogDescription>
+                    Isi dan kelola informasi lengkap data siswa di bawah ini.
+                </DialogDescription>
+                
+                <div class="flex items-center gap-1 mt-4 overflow-x-auto pb-1 text-xs border-b border-neutral-100 dark:border-neutral-800">
+                    <button type="button" @click="activeTab = 'biodata'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'biodata' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <User class="h-3.5 w-3.5" />
+                        <span>Biodata Utama</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'family'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'family' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <Users class="h-3.5 w-3.5" />
+                        <span>Keluarga</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'health'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'health' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <HeartPulse class="h-3.5 w-3.5" />
+                        <span>Kesehatan</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'education'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'education' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <History class="h-3.5 w-3.5" />
+                        <span>Riwayat Sekolah</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'socials'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'socials' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <Share2 class="h-3.5 w-3.5" />
+                        <span>Medsos</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'achievements'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'achievements' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <Trophy class="h-3.5 w-3.5" />
+                        <span>Prestasi</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'violations'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'violations' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <Shield class="h-3.5 w-3.5" />
+                        <span>Pelanggaran</span>
+                    </button>
+                    <button type="button" @click="activeTab = 'documents'" :class="['px-3 py-1.5 rounded-md flex items-center gap-1.5 whitespace-nowrap transition-colors', activeTab === 'documents' ? 'bg-blue-50 text-blue-600 font-semibold dark:bg-blue-950 dark:text-blue-400' : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800']">
+                        <FileText class="h-3.5 w-3.5" />
+                        <span>Dokumen</span>
+                    </button>
+                </div>
+            </DialogHeader>
+
+            <form @submit.prevent="handleSubmit" class="flex-1 overflow-y-auto p-6 space-y-6">
+                <div v-show="activeTab === 'biodata'" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <Label for="full_name">Nama Lengkap *</Label>
+                            <Input id="full_name" v-model="form.full_name" placeholder="Nama Lengkap Siswa" required />
+                            <span v-if="form.errors.full_name" class="text-xs text-red-500">{{ form.errors.full_name }}</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="nickname">Nama Panggilan</Label>
+                            <Input id="nickname" v-model="form.nickname" placeholder="Panggilan" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="nisn">NISN *</Label>
+                            <Input id="nisn" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nisn" placeholder="Nomor Induk Siswa Nasional" required />
+                            <span v-if="form.errors.nisn" class="text-xs text-red-500">{{ form.errors.nisn }}</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="nis">NIS</Label>
+                            <Input id="nis" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nis" placeholder="Nomor Induk Sekolah" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="gender_id">Jenis Kelamin *</Label>
+                            <select id="gender_id" v-model="form.gender_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                                <option value="">Pilih Jenis Kelamin</option>
+                                <option v-for="g in props.genders" :key="g.id" :value="g.id">{{ g.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="citizenship_id">Kewarganegaraan</Label>
+                            <select id="citizenship_id" v-model="form.citizenship_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Kewarganegaraan</option>
+                                <option v-for="c in props.citizenships" :key="c.id" :value="c.id">{{ c.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="religion_id">Agama</Label>
+                            <select id="religion_id" v-model="form.religion_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Agama</option>
+                                <option v-for="r in props.religions" :key="r.id" :value="r.id">{{ r.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="birth_place">Tempat Lahir</Label>
+                            <Input id="birth_place" v-model="form.birth_place" placeholder="Kota Lahir" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="birth_date">Tanggal Lahir</Label>
+                            <Input id="birth_date" type="date" v-model="form.birth_date" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="classroom_id">Kelas</Label>
+                            <select id="classroom_id" v-model="form.classroom_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Kelas</option>
+                                <option v-for="c in props.classrooms" :key="c.id" :value="c.id">{{ c.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="major_id">Jurusan</Label>
+                            <select id="major_id" v-model="form.major_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Jurusan</option>
+                                <option v-for="m in props.majors" :key="m.id" :value="m.id">{{ m.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="academic_year_id">Tahun Ajaran *</Label>
+                            <select id="academic_year_id" v-model="form.academic_year_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                                <option value="">Pilih Tahun Ajaran</option>
+                                <option v-for="ay in props.academicYears" :key="ay.id" :value="ay.id">{{ ay.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="student_status_id">Status Siswa</Label>
+                            <select id="student_status_id" v-model="form.student_status_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Status</option>
+                                <option v-for="st in props.studentStatuses" :key="st.id" :value="st.id">{{ st.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="phone">No. Telepon / WA</Label>
+                            <Input id="phone" type="text" inputmode="tel" pattern="[0-9+]*" v-model="form.phone" placeholder="08xxxxxxxxxx" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="email">Email</Label>
+                            <Input id="email" type="email" v-model="form.email" placeholder="siswa@sekolah.sch.id" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="address">Alamat</Label>
+                            <Input id="address" v-model="form.address" placeholder="Alamat lengkap siswa" />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="postal_code">Kode Pos</Label>
+                            <Input id="postal_code" v-model="form.postal_code" placeholder="Kode Pos" />
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'family'" class="space-y-6">
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Ayah</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Nama Ayah</Label>
+                                <Input v-model="form.family.father_name" placeholder="Nama Ayah Kandung" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">No. Telepon Ayah</Label>
+                                <Input v-model="form.family.father_phone" placeholder="08xxx" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Pekerjaan Ayah</Label>
+                                <select v-model="form.family.father_occupation_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                    <option value="">Pilih Pekerjaan</option>
+                                    <option v-for="o in props.occupations" :key="o.id" :value="o.id">{{ o.name }}</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Penghasilan Ayah</Label>
+                                <select v-model="form.family.father_income_category_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                    <option value="">Pilih Penghasilan</option>
+                                    <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Ibu</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Nama Ibu</Label>
+                                <Input v-model="form.family.mother_name" placeholder="Nama Ibu Kandung" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">No. Telepon Ibu</Label>
+                                <Input v-model="form.family.mother_phone" placeholder="08xxx" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Pekerjaan Ibu</Label>
+                                <select v-model="form.family.mother_occupation_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                    <option value="">Pilih Pekerjaan</option>
+                                    <option v-for="o in props.occupations" :key="o.id" :value="o.id">{{ o.name }}</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Penghasilan Ibu</Label>
+                                <select v-model="form.family.mother_income_category_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                    <option value="">Pilih Penghasilan</option>
+                                    <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Wali & Kontak Darurat</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Nama Wali</Label>
+                                <Input v-model="form.family.guardian_name" placeholder="Nama Wali (Opsional)" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">No. Telepon Wali</Label>
+                                <Input v-model="form.family.guardian_phone" placeholder="08xxx" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Kontak Darurat (Nama)</Label>
+                                <Input v-model="form.family.emergency_contact_name" placeholder="Nama Kontak Darurat" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Kontak Darurat (No Telp)</Label>
+                                <Input v-model="form.family.emergency_contact_phone" placeholder="08xxx" class="text-sm" />
+                            </div>
+                            <div class="space-y-1 md:col-span-2">
+                                <Label class="text-xs">Hubungan Kontak Darurat</Label>
+                                <select v-model="form.family.relationship_type_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                    <option value="">Pilih Hubungan</option>
+                                    <option v-for="rel in props.relationshipTypes" :key="rel.id" :value="rel.id">{{ rel.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'health'" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="space-y-1">
+                            <Label class="text-xs">Golongan Darah</Label>
+                            <select v-model="form.health.blood_type_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Gol. Darah</option>
+                                <option v-for="bt in props.bloodTypes" :key="bt.id" :value="bt.id">{{ bt.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs">Tinggi Badan (cm)</Label>
+                            <Input type="number" step="0.01" v-model="form.health.height" placeholder="165" class="text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs">Berat Badan (kg)</Label>
+                            <Input type="number" step="0.01" v-model="form.health.weight" placeholder="55" class="text-sm" />
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <Label class="text-xs">Alergi</Label>
+                            <Input v-model="form.health.allergies" placeholder="Alergi Makanan / Obat" class="text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs">Kebutuhan Khusus / Disabilitas</Label>
+                            <Input v-model="form.health.disabilities" placeholder="Disabilitas jika ada" class="text-sm" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <Label class="text-xs">Riwayat Penyakit</Label>
+                            <Input v-model="form.health.medical_history" placeholder="Asma, Diabetes, dll" class="text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs">Konsumsi Obat Rutin</Label>
+                            <Input v-model="form.health.medications" placeholder="Nama obat rujukan" class="text-sm" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="space-y-1">
+                            <Label class="text-xs">Rumah Sakit Rujukan Darurat</Label>
+                            <Input v-model="form.health.hospital" placeholder="RS Rujukan" class="text-sm" />
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs">Dokter Rujukan</Label>
+                            <Input v-model="form.health.doctor" placeholder="Dokter Penanggung Jawab" class="text-sm" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <Label class="text-xs">Catatan Kesehatan Tambahan</Label>
+                        <Input v-model="form.health.notes" placeholder="Catatan kesehatan lainnya" class="text-sm" />
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'education'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Riwayat Sekolah Sebelumnya</h4>
+                        <Button type="button" size="sm" variant="outline" @click="addEducation" class="flex items-center gap-1 text-xs">
+                            <Plus class="h-3.5 w-3.5" />
+                            <span>Tambah Sekolah</span>
+                        </Button>
+                    </div>
+
+                    <div v-for="(edu, index) in form.education_histories" :key="index" class="p-4 border rounded-lg space-y-3 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
+                        <div class="flex justify-between items-center border-b pb-2 dark:border-neutral-800">
+                            <span class="text-xs font-semibold">Sekolah #{{ index + 1 }}</span>
+                            <Button type="button" size="icon" variant="ghost" @click="removeEducation(index)">
+                                <Trash2 class="h-4 w-4 text-red-500" />
+                            </Button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Jenjang Pendidikan *</Label>
+                                <select v-model="edu.education_level_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                                    <option value="">Pilih Jenjang</option>
+                                    <option v-for="el in props.educationLevels" :key="el.id" :value="el.id">{{ el.name }}</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Nama Sekolah *</Label>
+                                <Input v-model="edu.school_name" placeholder="SMPN 1 Jakarta" class="text-sm" required />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">NPSN</Label>
+                                <Input v-model="edu.npsn" placeholder="Nomor NPSN" class="text-sm" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Tahun Masuk</Label>
+                                <Input type="number" min="1900" max="2099" inputmode="numeric" v-model="edu.entry_year" placeholder="2020" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Tahun Lulus</Label>
+                                <Input type="number" min="1900" max="2099" inputmode="numeric" v-model="edu.graduation_year" placeholder="2023" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Nilai Akhir / IPK</Label>
+                                <Input
+                                    type="text"
+                                    v-model="edu.final_score"
+                                    placeholder="85.50"
+                                    @blur="normalizeScoreInput(edu)"
+                                    class="text-sm"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Alamat Sekolah</Label>
+                                <Input v-model="edu.address" placeholder="Jl. Raya Utama No. 12" class="text-sm" />
+                            </div>
+                            <div class="flex items-center gap-2 pt-4">
+                                <input type="checkbox" :id="'graduated_' + index" v-model="edu.is_graduated" class="rounded border-input" />
+                                <Label :for="'graduated_' + index" class="text-xs font-normal cursor-pointer">Lulus dari Sekolah Ini</Label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'socials'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Akun Media Sosial</h4>
+                        <Button type="button" size="sm" variant="outline" @click="addSocial" class="flex items-center gap-1 text-xs">
+                            <Plus class="h-3.5 w-3.5" />
+                            <span>Tambah Medsos</span>
+                        </Button>
+                    </div>
+
+                    <div v-for="(soc, index) in form.socials" :key="index" class="p-3 border rounded-lg flex flex-col md:flex-row md:items-center gap-3 dark:border-neutral-800">
+                        <select v-model="soc.social_platform_id" class="border rounded-md p-2 text-sm bg-background border-input w-full md:w-1/4">
+                            <option value="">Platform</option>
+                            <option v-for="sp in props.socialPlatforms" :key="sp.id" :value="sp.id">{{ sp.name }}</option>
+                        </select>
+                        <Input v-model="soc.username" placeholder="@username" class="text-sm flex-1" />
+                        <Input type="url" v-model="soc.url" placeholder="https://" class="text-sm flex-1" />
+                        <Button type="button" size="icon" variant="ghost" @click="removeSocial(index)">
+                            <Trash2 class="h-4 w-4 text-red-500" />
+                        </Button>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'achievements'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Daftar Prestasi</h4>
+                        <Button type="button" size="sm" variant="outline" @click="addAchievement" class="flex items-center gap-1 text-xs">
+                            <Plus class="h-3.5 w-3.5" />
+                            <span>Tambah Prestasi</span>
+                        </Button>
+                    </div>
+
+                    <div v-for="(ach, index) in form.achievements" :key="index" class="p-3 border rounded-lg space-y-2 dark:border-neutral-800">
+                        <div class="flex justify-between items-center">
+                            <Input v-model="ach.title" placeholder="Judul Prestasi / Lomba" class="text-sm font-medium" />
+                            <Button type="button" size="icon" variant="ghost" @click="removeAchievement(index)">
+                                <Trash2 class="h-4 w-4 text-red-500" />
+                            </Button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Penyelenggara</Label>
+                                <Input v-model="ach.organizer" placeholder="Penyelenggara" class="text-xs" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Tingkat / Jenis Lomba</Label>
+                                <Input v-model="ach.level" placeholder="Sekolah / Kota / Nasional" class="text-xs" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Kategori</Label>
+                                <select v-model="ach.category" class="w-full border rounded-md p-2 text-sm bg-background border-input text-xs">
+                                    <option value="">Pilih Kategori</option>
+                                    <option value="Akademik">Akademik</option>
+                                    <option value="Non Akademik">Non Akademik</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Peringkat / Juara</Label>
+                                <Input type="number" v-model="ach.rank" placeholder="1234" class="text-xs" @input="ach.rank = String(ach.rank).slice(0, 4)" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Tanggal Prestasi</Label>
+                                <Input type="date" v-model="ach.achievement_date" class="text-xs" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Catatan</Label>
+                                <Input v-model="ach.description" placeholder="Deskripsi singkat" class="text-xs" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'violations'" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Daftar Pelanggaran</h4>
+                        <Button type="button" size="sm" variant="outline" @click="addViolation" class="flex items-center gap-1 text-xs">
+                            <Plus class="h-3.5 w-3.5" />
+                            <span>Tambah Pelanggaran</span>
+                        </Button>
+                    </div>
+
+                    <div v-for="(vio, index) in form.violations" :key="index" class="p-3 border rounded-lg space-y-3 dark:border-neutral-800">
+                        <div class="flex justify-between items-center">
+                            <Input v-model="vio.title" placeholder="Judul Pelanggaran" class="text-sm font-medium" />
+                            <Button type="button" size="icon" variant="ghost" @click="removeViolation(index)">
+                                <Trash2 class="h-4 w-4 text-red-500" />
+                            </Button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="space-y-1">
+                                <Label class="text-xs">Poin</Label>
+                                <Input type="number" v-model="vio.point" placeholder="0" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Tanggal Pelanggaran</Label>
+                                <Input type="date" v-model="vio.violation_date" class="text-sm" />
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Keterangan</Label>
+                                <Input v-model="vio.description" placeholder="Deskripsi pelanggaran" class="text-sm" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="activeTab === 'documents'" class="space-y-4">
+                    <div class="space-y-3 p-4 border rounded-lg dark:border-neutral-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Upload Dokumen Baru</h4>
+                                <div class="space-y-2">
+                            <Label class="text-xs">Jenis Dokumen</Label>
+                            <select v-model="form.document_type_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                                <option value="">Pilih Jenis Dokumen</option>
+                                <option v-for="dt in props.documentTypes" :key="dt.id" :value="dt.id">{{ dt.name }}</option>
+                            </select>
+                        </div>
+                        <div class="space-y-2">
+                            <Label class="text-xs">Keterangan / Nama Dokumen</Label>
+                            <Input v-model="form.new_document_name" placeholder="Misal: Ijazah SMP, KK, Akta" class="text-sm" />
+                        </div>
+                        <div class="space-y-2">
+                            <Label class="text-xs">Pilih File (PDF / Gambar)</Label>
+                            <Input 
+                                type="file" 
+                                @change="(e: any) => form.new_document_file = e.target.files[0]"
+                                class="mt-1"
+                            />
+                        </div>
+                    </div>
+
+                    <div v-if="props.student?.documents && props.student.documents.length > 0" class="space-y-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Dokumen Tersimpan</h4>
+                        <div v-for="doc in props.student.documents" :key="doc.id" class="flex items-center justify-between border p-3 rounded-lg text-xs dark:border-neutral-800">
+                            <span class="font-medium">{{ doc.original_name || doc.stored_name || doc.file_name || 'Dokumen Siswa' }}</span>
+                            <a :href="props.student ? `/students/${props.student.id}/documents/${doc.id}/preview` : '#'", target="_blank" class="text-blue-600 underline">Lihat / Unduh</a>
+                        </div>
+                    </div>
+                </div>
+
+                <DialogFooter class="pt-4 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end gap-2">
+                    <Button type="button" variant="outline" :disabled="form.processing" @click="handleClose">Batal</Button>
+                    <Button type="submit" :disabled="form.processing">
+                        <Loader2 v-if="form.processing" class="mr-2 h-4 w-4 animate-spin" />
+                        <span>Simpan Data</span>
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+</template>
