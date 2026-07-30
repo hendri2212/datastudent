@@ -14,6 +14,9 @@ class StudentDocumentController extends Controller
     /**
      * Menyimpan / Mengunggah berkas dokumen siswa.
      */
+    /**
+     * Menyimpan / Mengunggah berkas dokumen siswa.
+     */
     public function store(Request $request, Student $student): RedirectResponse
     {
         $request->validate([
@@ -30,6 +33,11 @@ class StudentDocumentController extends Controller
 
         // Simpan file ke direktori storage
         $filePath = $file->store('student_documents/' . $student->id, $disk);
+
+        // Penanganan jika proses upload gagal (PHPStan Type Assertion)
+        if (! $filePath) {
+            return back()->with('error', 'Gagal mengunggah berkas dokumen.');
+        }
 
         // Cari dokumen lama jika siswa sudah pernah upload tipe dokumen yang sama
         // (Mencegah error 'Duplicate Entry' pada constraint UNIQUE: student_id + document_type_id)
@@ -60,7 +68,7 @@ class StudentDocumentController extends Controller
                 'file_size'     => $file->getSize(),
                 'extension'     => strtolower($file->getClientOriginalExtension()),
                 'checksum'      => hash_file('sha256', $file->getRealPath()),
-                'uploaded_by'   => auth()->id(),
+                'uploaded_by'   => $request->user()?->id,
                 'notes'         => $request->notes,
                 'is_verified'   => false, // Reset status verifikasi saat file diunggah ulang
                 'verified_at'   => null,
@@ -127,7 +135,7 @@ class StudentDocumentController extends Controller
         $document->update([
             'is_verified' => true,
             'verified_at' => now(),
-            'verified_by' => auth()->id(),
+            'verified_by' => $request->user()?->id,
         ]);
 
         return back()->with('success', 'Dokumen berhasil diverifikasi.');

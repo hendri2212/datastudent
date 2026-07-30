@@ -15,6 +15,8 @@ class SocialPlatform extends Model
 
     /**
      * Relasi ke akun media sosial siswa
+     *
+     * @return HasMany<StudentSocial, $this>
      */
     public function studentSocials(): HasMany
     {

@@ -17,7 +17,13 @@ use App\Models\Religion;
 use App\Models\School;
 use App\Models\SocialPlatform;
 use App\Models\Student;
+use App\Models\StudentAchievement;
+use App\Models\StudentDocument;
+use App\Models\StudentEducationHistory;
+use App\Models\StudentSocial;
 use App\Models\StudentStatus;
+use App\Models\StudentViolation;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -46,6 +52,7 @@ class StudentController extends Controller
         $tab = $request->input('tab', 'active');
 
         // Eager load seluruh relasi utama dan relasi pendukung
+        /** @var Builder<Student> $query */
         $query = Student::query()
             ->with([
                 'classroom',
@@ -74,10 +81,8 @@ class StudentController extends Controller
             ]);
 
         if ($tab === 'trashed') {
-            /** @var \Illuminate\Database\Eloquent\Builder $query */
             $query->onlyTrashed();
         } else {
-            /** @var \Illuminate\Database\Eloquent\Builder $query */
             $query->withoutTrashed();
         }
 
@@ -231,6 +236,13 @@ class StudentController extends Controller
             'achievements.*.achievement_date'    => ['nullable', 'date'],
             'achievements.*.description'         => ['nullable', 'string'],
 
+            // Pelanggaran (Array)
+            'violations'                         => ['nullable', 'array'],
+            'violations.*.title'                 => ['nullable', 'string', 'max:255'],
+            'violations.*.point'                 => ['nullable', 'integer'],
+            'violations.*.violation_date'        => ['nullable', 'date'],
+            'violations.*.description'          => ['nullable', 'string'],
+
             // Dokumen Upload
             'document_type_id'  => ['nullable', 'exists:document_types,id'],
             'new_document_name' => ['nullable', 'string', 'max:255'],
@@ -241,13 +253,14 @@ class StudentController extends Controller
         $validated['student_status_id'] = $validated['student_status_id'] ?? $defaultStatusId;
 
         DB::transaction(function () use ($request, $validated) {
-            /** @var \App\Models\Student $student */
+            /** @var Student $student */
             $student = Student::create(Arr::except($validated, [
                 'family',
                 'education_histories',
                 'health',
                 'socials',
                 'achievements',
+                'violations',
                 'new_document_file',
                 'new_document_name',
             ]));
@@ -324,40 +337,45 @@ class StudentController extends Controller
 
             if ($request->hasFile('new_document_file')) {
                 $file = $request->file('new_document_file');
-                $filePath = $file->store('student_documents', 'public');
+                if ($file !== null) {
+                    $filePath = $file->store('student_documents', 'public');
 
-                $defaultDocTypeId = class_exists(DocumentType::class)
-                    ? (DocumentType::value('id') ?? 1)
-                    : 1;
+                    if ($filePath !== false) {
+                        $defaultDocTypeId = class_exists(DocumentType::class)
+                            ? (DocumentType::value('id') ?? 1)
+                            : 1;
 
-                $documentTypeId = $request->input('document_type_id', $defaultDocTypeId);
+                        $documentTypeId = $request->input('document_type_id', $defaultDocTypeId);
 
-                $existingDocument = $student->documents()
-                    ->where('document_type_id', $documentTypeId)
-                    ->first();
+                        /** @var StudentDocument|null $existingDocument */
+                        $existingDocument = $student->documents()
+                            ->where('document_type_id', $documentTypeId)
+                            ->first();
 
-                if ($existingDocument && $existingDocument->file_path) {
-                    Storage::disk($existingDocument->disk ?? 'public')
-                        ->delete($existingDocument->file_path);
+                        if ($existingDocument && $existingDocument->file_path) {
+                            Storage::disk($existingDocument->disk ?? 'public')
+                                ->delete($existingDocument->file_path);
+                        }
+
+                        $student->documents()->updateOrCreate(
+                            [
+                                'student_id'       => $student->id,
+                                'document_type_id' => $documentTypeId,
+                            ],
+                            [
+                                'original_name' => $file->getClientOriginalName(),
+                                'stored_name'   => basename($filePath),
+                                'file_path'     => $filePath,
+                                'extension'     => strtolower($file->getClientOriginalExtension()),
+                                'disk'          => 'public',
+                                'file_size'     => $file->getSize(),
+                                'mime_type'     => $file->getClientMimeType(),
+                                'notes'         => $validated['new_document_name'] ?? null,
+                                'uploaded_by'   => Auth::id(),
+                            ]
+                        );
+                    }
                 }
-
-                $student->documents()->updateOrCreate(
-                    [
-                        'student_id'       => $student->id,
-                        'document_type_id' => $documentTypeId,
-                    ],
-                    [
-                        'original_name' => $file->getClientOriginalName(),
-                        'stored_name'   => basename($filePath),
-                        'file_path'     => $filePath,
-                        'extension'     => strtolower($file->getClientOriginalExtension()),
-                        'disk'          => 'public',
-                        'file_size'     => $file->getSize(),
-                        'mime_type'     => $file->getClientMimeType(),
-                        'notes'         => $validated['new_document_name'] ?? null,
-                        'uploaded_by'   => Auth::id(),
-                    ]
-                );
             }
         });
 
@@ -368,100 +386,109 @@ class StudentController extends Controller
      * Memperbarui data siswa beserta relasinya
      */
     public function update(Request $request, Student $student): RedirectResponse
-    {
-        $validated = $request->validate([
-            'school_id'         => ['required', 'exists:schools,id'],
-            'major_id'          => ['nullable', 'exists:majors,id'],
-            'classroom_id'      => ['nullable', 'exists:classrooms,id'],
-            'academic_year_id'  => ['required', 'exists:academic_years,id'],
-            'gender_id'         => ['required', 'exists:genders,id'],
-            'religion_id'       => ['nullable', 'exists:religions,id'],
-            'citizenship_id'    => ['nullable', 'exists:citizenships,id'],
-            'student_status_id' => ['required', 'exists:student_statuses,id'],
-            'nisn'              => ['required', 'string', 'max:20', 'unique:students,nisn,' . $student->id],
-            'nis'               => ['nullable', 'string', 'max:30', 'unique:students,nis,' . $student->id],
-            'full_name'         => ['required', 'string', 'max:255'],
-            'nickname'          => ['nullable', 'string', 'max:100'],
-            'birth_place'       => ['required', 'string', 'max:100'],
-            'birth_date'        => ['required', 'date'],
-            'phone'             => ['nullable', 'string', 'max:25'],
-            'email'             => ['nullable', 'email', 'max:255'],
-            'address'           => ['nullable', 'string'],
-            'postal_code'       => ['nullable', 'string', 'max:10'],
+{
+    $validated = $request->validate([
+        'school_id'         => ['required', 'exists:schools,id'],
+        'major_id'          => ['nullable', 'exists:majors,id'],
+        'classroom_id'      => ['nullable', 'exists:classrooms,id'],
+        'academic_year_id'  => ['required', 'exists:academic_years,id'],
+        'gender_id'         => ['required', 'exists:genders,id'],
+        'religion_id'       => ['nullable', 'exists:religions,id'],
+        'citizenship_id'    => ['nullable', 'exists:citizenships,id'],
+        'student_status_id' => ['required', 'exists:student_statuses,id'],
+        
+        // --- PERBAIKAN 1: Tambahkan validasi ini agar blood_type_id utama tidak dibuang Laravel ---
+        'blood_type_id'     => ['nullable', 'exists:blood_types,id'],
+        
+        'nisn'              => ['required', 'string', 'max:20', 'unique:students,nisn,' . $student->id],
+        'nis'               => ['nullable', 'string', 'max:30', 'unique:students,nis,' . $student->id],
+        'full_name'         => ['required', 'string', 'max:255'],
+        'nickname'          => ['nullable', 'string', 'max:100'],
+        'birth_place'       => ['required', 'string', 'max:100'],
+        'birth_date'        => ['required', 'date'],
+        'phone'             => ['nullable', 'string', 'max:25'],
+        'email'             => ['nullable', 'email', 'max:255'],
+        'address'           => ['nullable', 'string'],
+        'postal_code'       => ['nullable', 'string', 'max:10'],
 
-            'family'                              => ['nullable', 'array'],
-            'family.father_name'                  => ['nullable', 'string', 'max:255'],
-            'family.father_occupation_id'         => ['nullable', 'exists:occupations,id'],
-            'family.father_income_category_id'    => ['nullable', 'exists:income_categories,id'],
-            'family.father_phone'                 => ['nullable', 'string', 'max:25'],
-            'family.mother_name'                  => ['nullable', 'string', 'max:255'],
-            'family.mother_occupation_id'         => ['nullable', 'exists:occupations,id'],
-            'family.mother_income_category_id'    => ['nullable', 'exists:income_categories,id'],
-            'family.mother_phone'                 => ['nullable', 'string', 'max:25'],
-            'family.guardian_name'                => ['nullable', 'string', 'max:255'],
-            'family.guardian_occupation_id'       => ['nullable', 'exists:occupations,id'],
-            'family.guardian_income_category_id'  => ['nullable', 'exists:income_categories,id'],
-            'family.guardian_phone'               => ['nullable', 'string', 'max:25'],
-            'family.emergency_contact_name'       => ['nullable', 'string', 'max:255'],
-            'family.emergency_contact_phone'      => ['nullable', 'string', 'max:25'],
-            'family.relationship_type_id'         => ['nullable', 'exists:relationship_types,id'],
-            'family.notes'                        => ['nullable', 'string'],
+        'family'                              => ['nullable', 'array'],
+        'family.father_name'                  => ['nullable', 'string', 'max:255'],
+        'family.father_occupation_id'         => ['nullable', 'exists:occupations,id'],
+        'family.father_income_category_id'    => ['nullable', 'exists:income_categories,id'],
+        'family.father_phone'                 => ['nullable', 'string', 'max:25'],
+        'family.mother_name'                  => ['nullable', 'string', 'max:255'],
+        'family.mother_occupation_id'         => ['nullable', 'exists:occupations,id'],
+        'family.mother_income_category_id'    => ['nullable', 'exists:income_categories,id'],
+        'family.mother_phone'                 => ['nullable', 'string', 'max:25'],
+        'family.guardian_name'                => ['nullable', 'string', 'max:255'],
+        'family.guardian_occupation_id'       => ['nullable', 'exists:occupations,id'],
+        'family.guardian_income_category_id'  => ['nullable', 'exists:income_categories,id'],
+        'family.guardian_phone'               => ['nullable', 'string', 'max:25'],
+        'family.emergency_contact_name'       => ['nullable', 'string', 'max:255'],
+        'family.emergency_contact_phone'      => ['nullable', 'string', 'max:25'],
+        'family.relationship_type_id'         => ['nullable', 'exists:relationship_types,id'],
+        'family.notes'                        => ['nullable', 'string'],
 
-            'education_histories'                      => ['nullable', 'array'],
-            'education_histories.*.id'                 => ['nullable', 'exists:student_education_history,id'],
-            'education_histories.*.education_level_id' => ['required_with:education_histories', 'exists:education_levels,id'],
-            'education_histories.*.school_name'        => ['nullable', 'string', 'max:255'],
-            'education_histories.*.npsn'               => ['nullable', 'string', 'max:30'],
-            'education_histories.*.address'            => ['nullable', 'string'],
-            'education_histories.*.entry_year'         => ['nullable', 'integer', 'digits:4'],
-            'education_histories.*.graduation_year'    => ['nullable', 'integer', 'digits:4', 'gte:education_histories.*.entry_year'],
-            'education_histories.*.final_score'        => ['nullable', 'numeric', 'between:0,100.00'],
-            'education_histories.*.is_graduated'       => ['boolean'],
-            'education_histories.*.notes'              => ['nullable', 'string'],
+        'education_histories'                      => ['nullable', 'array'],
+        'education_histories.*.id'                 => ['nullable', 'exists:student_education_history,id'],
+        'education_histories.*.education_level_id' => ['required_with:education_histories', 'exists:education_levels,id'],
+        'education_histories.*.school_name'        => ['nullable', 'string', 'max:255'],
+        'education_histories.*.npsn'               => ['nullable', 'string', 'max:30'],
+        'education_histories.*.address'            => ['nullable', 'string'],
+        'education_histories.*.entry_year'         => ['nullable', 'integer', 'digits:4'],
+        'education_histories.*.graduation_year'    => ['nullable', 'integer', 'digits:4', 'gte:education_histories.*.entry_year'],
+        'education_histories.*.final_score'        => ['nullable', 'numeric', 'between:0,100.00'],
+        'education_histories.*.is_graduated'       => ['boolean'],
+        'education_histories.*.notes'              => ['nullable', 'string'],
 
-            'health'                            => ['nullable', 'array'],
-            'health.height'                     => ['nullable', 'numeric'],
-            'health.weight'                     => ['nullable', 'numeric'],
-            'health.blood_type_id'              => ['nullable', 'exists:blood_types,id'],
-            'health.allergies'                  => ['nullable', 'string'],
-            'health.medical_history'            => ['nullable', 'string'],
-            'health.disabilities'               => ['nullable', 'string'],
-            'health.medications'                => ['nullable', 'string'],
-            'health.hospital'                   => ['nullable', 'string', 'max:255'],
-            'health.doctor'                     => ['nullable', 'string', 'max:255'],
-            'health.notes'                      => ['nullable', 'string'],
+        'health'                            => ['nullable', 'array'],
+        'health.height'                     => ['nullable', 'numeric'],
+        'health.weight'                     => ['nullable', 'numeric'],
+        'health.blood_type_id'              => ['nullable', 'exists:blood_types,id'],
+        'health.allergies'                  => ['nullable', 'string'],
+        'health.medical_history'            => ['nullable', 'string'],
+        'health.disabilities'               => ['nullable', 'string'],
+        'health.medications'                => ['nullable', 'string'],
+        'health.hospital'                   => ['nullable', 'string', 'max:255'],
+        'health.doctor'                     => ['nullable', 'string', 'max:255'],
+        'health.notes'                      => ['nullable', 'string'],
 
-            'socials'                           => ['nullable', 'array'],
-            'socials.*.id'                      => ['nullable', 'exists:student_socials,id'],
-            'socials.*.social_platform_id'      => ['required_with:socials', 'exists:social_platforms,id','distinct'],
-            'socials.*.username'                => ['nullable', 'string', 'max:100'],
-            'socials.*.url'                     => ['nullable', 'string', 'max:255'],
-            'socials.*.is_public'               => ['boolean'],
-            'socials.*.is_primary'              => ['boolean'],
+        'socials'                           => ['nullable', 'array'],
+        'socials.*.id'                      => ['nullable', 'exists:student_socials,id'],
+        'socials.*.social_platform_id'      => ['required_with:socials', 'exists:social_platforms,id','distinct'],
+        'socials.*.username'                => ['nullable', 'string', 'max:100'],
+        'socials.*.url'                     => ['nullable', 'string', 'max:255'],
+        'socials.*.is_public'               => ['boolean'],
+        'socials.*.is_primary'              => ['boolean'],
 
-            'achievements'                      => ['nullable', 'array'],
-            'achievements.*.id'                 => ['nullable', 'exists:student_achievements,id'],
-            'achievements.*.title'              => ['nullable', 'string', 'max:255'],
-            'achievements.*.organizer'          => ['nullable', 'string', 'max:255'],
-            'achievements.*.level'              => ['nullable', 'string', 'max:100'],
-            'achievements.*.category'           => ['nullable', 'string', 'max:100'],
-            'achievements.*.rank'               => ['nullable', 'integer'],
-            'achievements.*.achievement_date'   => ['nullable', 'date'],
-            'achievements.*.description'        => ['nullable', 'string'],
+        'achievements'                      => ['nullable', 'array'],
+        'achievements.*.id'                 => ['nullable', 'exists:student_achievements,id'],
+        'achievements.*.title'              => ['nullable', 'string', 'max:255'],
+        'achievements.*.organizer'          => ['nullable', 'string', 'max:255'],
+        'achievements.*.level'              => ['nullable', 'string', 'max:100'],
+        'achievements.*.category'           => ['nullable', 'string', 'max:100'],
+        'achievements.*.rank'               => ['nullable', 'integer'],
+        'achievements.*.achievement_date'   => ['nullable', 'date'],
+        'achievements.*.description'        => ['nullable', 'string'],
 
-            'violations'                        => ['nullable', 'array'],
-            'violations.*.id'                   => ['nullable', 'exists:student_violations,id'],
-            'violations.*.title'                => ['required_with:violations', 'string', 'max:255'],
-            'violations.*.point'                => ['nullable', 'integer'],
-            'violations.*.violation_date'       => ['nullable', 'date'],
-            'violations.*.description'          => ['nullable', 'string'],
+        'violations'                        => ['nullable', 'array'],
+        'violations.*.id'                   => ['nullable', 'exists:student_violations,id'],
+        'violations.*.title'                => ['required_with:violations', 'string', 'max:255'],
+        'violations.*.point'                => ['nullable', 'integer'],
+        'violations.*.violation_date'       => ['nullable', 'date'],
+        'violations.*.description'          => ['nullable', 'string'],
 
-            'document_type_id'  => ['nullable', 'exists:document_types,id'],
-            'new_document_name' => ['nullable', 'string', 'max:255'],
-            'new_document_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-        ]);
+        'document_type_id'  => ['nullable', 'exists:document_types,id'],
+        'new_document_name' => ['nullable', 'string', 'max:255'],
+        'new_document_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+    ]);
 
         DB::transaction(function () use ($request, $student, $validated) {
+
+            if (isset($validated['health']['blood_type_id'])) {
+                $validated['blood_type_id'] = $validated['health']['blood_type_id'];
+            }
+
             $student->update(Arr::except($validated, [
                 'family',
                 'education_histories',
@@ -486,6 +513,7 @@ class StudentController extends Controller
                     foreach ($validated['education_histories'] as $history) {
                         if (!empty($history['education_level_id'])) {
                             if (!empty($history['id'])) {
+                                /** @var StudentEducationHistory|null $record */
                                 $record = $student->educationHistories()->find($history['id']);
                                 if ($record) {
                                     $record->update([
@@ -501,9 +529,10 @@ class StudentController extends Controller
                                     ]);
                                 }
                             } else {
+                                /** @var StudentEducationHistory $record */
                                 $record = $student->educationHistories()->updateOrCreate(
                                     [
-                                        'student_id'       => $student->id,
+                                        'student_id'         => $student->id,
                                         'education_level_id' => $history['education_level_id'],
                                     ],
                                     [
@@ -519,7 +548,7 @@ class StudentController extends Controller
                                 );
                             }
 
-                            if (isset($record) && $record) {
+                            if ($record instanceof StudentEducationHistory) {
                                 $keptEducationIds[] = $record->id;
                             }
                         }
@@ -530,23 +559,27 @@ class StudentController extends Controller
                 }
             }
 
-            if (!empty($validated['health'])) {
+           if (!empty($validated['health'])) {
                 $student->health()->updateOrCreate(
                     ['student_id' => $student->id],
-                    $validated['health']
+                    $validated['health'] // <-- PERBAIKAN: Gunakan $validated['health']
                 );
             }
 
-           if (array_key_exists('socials', $validated)) {
+            if (array_key_exists('socials', $validated)) {
                 $keptSocialIds = [];
 
-                $uniqueSocials = collect($validated['socials'] ?? [])
+                /** @var array<int, array<string, mixed>> $socialsList */
+                $socialsList = $validated['socials'] ?? [];
+
+                $uniqueSocials = collect($socialsList)
                     ->filter(fn ($item) => !empty($item['social_platform_id']))
                     ->unique('social_platform_id');
 
                 foreach ($uniqueSocials as $social) {
                     // 1. Cari data termasuk yang sudah di-soft-delete
-                    $record = \App\Models\StudentSocial::withTrashed()->updateOrCreate(
+                    /** @var StudentSocial $record */
+                    $record = StudentSocial::withTrashed()->updateOrCreate(
                         [
                             'student_id'         => $student->id,
                             'social_platform_id' => $social['social_platform_id'],
@@ -570,16 +603,16 @@ class StudentController extends Controller
                 // 3. Soft delete data yang tidak dicentang/dipilih lagi di UI
                 $student->socials()->whereNotIn('id', $keptSocialIds)->delete();
             }
-            
 
             if (array_key_exists('achievements', $validated)) {
                 if (!empty($validated['achievements'])) {
                     $keptAchievementIds = [];
                     foreach ($validated['achievements'] as $ach) {
                         if (!empty($ach['title'])) {
+                            /** @var StudentAchievement $record */
                             $record = $student->achievements()->updateOrCreate(
                                 [
-                                    'id' => $ach['id'] ?? null,
+                                    'id'         => $ach['id'] ?? null,
                                     'student_id' => $student->id,
                                 ],
                                 [
@@ -606,9 +639,10 @@ class StudentController extends Controller
                     $keptViolationIds = [];
                     foreach ($validated['violations'] as $violation) {
                         if (!empty($violation['title'])) {
+                            /** @var StudentViolation $record */
                             $record = $student->violations()->updateOrCreate(
                                 [
-                                    'id' => $violation['id'] ?? null,
+                                    'id'         => $violation['id'] ?? null,
                                     'student_id' => $student->id,
                                 ],
                                 [
@@ -627,32 +661,37 @@ class StudentController extends Controller
                     $student->violations()->delete();
                 }
             }
+
             if ($request->hasFile('new_document_file')) {
                 $file = $request->file('new_document_file');
-                $filePath = $file->store('student_documents', 'public');
+                if ($file !== null) {
+                    $filePath = $file->store('student_documents', 'public');
 
-                // Ambil default ID jika class DocumentType ada
-                $defaultDocTypeId = class_exists(DocumentType::class)
-                    ? (DocumentType::value('id') ?? 1)
-                    : 1;
+                    if ($filePath !== false) {
+                        // Ambil default ID jika class DocumentType ada
+                        $defaultDocTypeId = class_exists(DocumentType::class)
+                            ? (DocumentType::value('id') ?? 1)
+                            : 1;
 
-                // Pakai $request->filled() agar bernilai benar jika input kosong / null
-                $documentTypeId = $request->filled('document_type_id')
-                    ? $request->input('document_type_id')
-                    : $defaultDocTypeId;
+                        // Pakai $request->filled() agar bernilai benar jika input kosong / null
+                        $documentTypeId = $request->filled('document_type_id')
+                            ? $request->input('document_type_id')
+                            : $defaultDocTypeId;
 
-                $student->documents()->create([
-                    'document_type_id' => $documentTypeId, // Sudah terjamin tidak NULL
-                    'original_name'    => $file->getClientOriginalName(),
-                    'stored_name'      => basename($filePath),
-                    'file_path'        => $filePath,
-                    'extension'        => strtolower($file->getClientOriginalExtension()),
-                    'disk'             => 'public',
-                    'file_size'        => $file->getSize(),
-                    'mime_type'        => $file->getClientMimeType(),
-                    'notes'            => $validated['new_document_name'] ?? null,
-                    'uploaded_by'      => Auth::id(),
-                ]);
+                        $student->documents()->create([
+                            'document_type_id' => $documentTypeId,
+                            'original_name'    => $file->getClientOriginalName(),
+                            'stored_name'      => basename($filePath),
+                            'file_path'        => $filePath,
+                            'extension'        => strtolower($file->getClientOriginalExtension()),
+                            'disk'             => 'public',
+                            'file_size'        => $file->getSize(),
+                            'mime_type'        => $file->getClientMimeType(),
+                            'notes'            => $validated['new_document_name'] ?? null,
+                            'uploaded_by'      => Auth::id(),
+                        ]);
+                    }
+                }
             }
         });
 
@@ -673,7 +712,7 @@ class StudentController extends Controller
      */
     public function restore(int $id): RedirectResponse
     {
-        /** @var \App\Models\Student $student */
+        /** @var Student $student */
         $student = Student::onlyTrashed()->findOrFail($id);
         $student->restore();
 
@@ -685,11 +724,12 @@ class StudentController extends Controller
      */
     public function forceDelete(int $id): RedirectResponse
     {
-        /** @var \App\Models\Student $student */
+        /** @var Student $student */
         $student = Student::onlyTrashed()->with('documents')->findOrFail($id);
 
         // Hapus file fisik dokumen dari penyimpanan
         foreach ($student->documents as $doc) {
+            /** @var StudentDocument $doc */
             if ($doc->file_path && Storage::disk('public')->exists($doc->file_path)) {
                 Storage::disk('public')->delete($doc->file_path);
             }

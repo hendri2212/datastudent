@@ -68,6 +68,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/students/{student}/documents/{document}/download', [StudentDocumentController::class, 'download'])->name('students.documents.download');
     Route::post('/students/{student}/documents/{document}/verify', [StudentDocumentController::class, 'verify'])->name('students.documents.verify');
     Route::delete('/students/{student}/documents/{document}', [StudentDocumentController::class, 'destroy'])->name('students.documents.destroy');
+    Route::middleware(['auth'])->group(function () {
+    Route::post('/students/{student}/documents', [StudentDocumentController::class, 'store']);
+});
 
     // Data Kesehatan Siswa
     Route::post('/students/{student}/health', [StudentHealthController::class, 'storeOrUpdate'])->name('students.health.store');

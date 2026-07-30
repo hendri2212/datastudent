@@ -13,6 +13,9 @@ class Gender extends Model
 
     public $timestamps = false;
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

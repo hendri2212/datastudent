@@ -11,6 +11,9 @@ class Citizenship extends Model
 
     protected $guarded = ['id'];
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

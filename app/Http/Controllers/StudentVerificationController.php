@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -11,7 +12,7 @@ class StudentVerificationController extends Controller
     /**
      * Memverifikasi data siswa oleh user yang sedang login
      */
-    public function verify(Request $request, Student $student)
+    public function verify(Request $request, Student $student): RedirectResponse
     {
         if ($student->verified_at !== null) {
             // Mengirim pesan error via Inertia/Flash Session jika sudah diverifikasi
@@ -32,7 +33,7 @@ class StudentVerificationController extends Controller
     /**
      * Membatalkan verifikasi siswa
      */
-    public function unverify(Student $student)
+    public function unverify(Student $student): RedirectResponse
     {
         $student->update([
             'verified_at' => null,

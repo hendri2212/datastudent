@@ -22,13 +22,15 @@ class Student extends Model
 
     protected $appends = ['student_status'];
 
-    public function getStudentStatusAttribute()
+    public function getStudentStatusAttribute(): ?StudentStatus
     {
         return $this->status;
     }
 
     /**
      * Relasi ke Sekolah
+     *
+     * @return BelongsTo<School, $this>
      */
     public function school(): BelongsTo
     {
@@ -37,6 +39,8 @@ class Student extends Model
 
     /**
      * Relasi ke Jurusan
+     *
+     * @return BelongsTo<Major, $this>
      */
     public function major(): BelongsTo
     {
@@ -45,6 +49,8 @@ class Student extends Model
 
     /**
      * Relasi ke Kelas
+     *
+     * @return BelongsTo<Classroom, $this>
      */
     public function classroom(): BelongsTo
     {
@@ -53,6 +59,8 @@ class Student extends Model
 
     /**
      * Relasi ke Tahun Ajaran
+     *
+     * @return BelongsTo<AcademicYear, $this>
      */
     public function academicYear(): BelongsTo
     {
@@ -61,6 +69,8 @@ class Student extends Model
 
     /**
      * Relasi ke Status Siswa (Aktif, Lulus, Dikeluarkan, dll)
+     *
+     * @return BelongsTo<StudentStatus, $this>
      */
     public function status(): BelongsTo
     {
@@ -69,6 +79,8 @@ class Student extends Model
 
     /**
      * Relasi ke Kewarganegaraan
+     *
+     * @return BelongsTo<Citizenship, $this>
      */
     public function citizenship(): BelongsTo
     {
@@ -77,6 +89,8 @@ class Student extends Model
 
     /**
      * Relasi ke Jenis Kelamin
+     *
+     * @return BelongsTo<Gender, $this>
      */
     public function gender(): BelongsTo
     {
@@ -85,6 +99,8 @@ class Student extends Model
 
     /**
      * Relasi ke Agama
+     *
+     * @return BelongsTo<Religion, $this>
      */
     public function religion(): BelongsTo
     {
@@ -93,6 +109,8 @@ class Student extends Model
 
     /**
      * Relasi ke Golongan Darah
+     *
+     * @return BelongsTo<BloodType, $this>
      */
     public function bloodType(): BelongsTo
     {
@@ -101,6 +119,8 @@ class Student extends Model
 
     /**
      * Relasi ke Akun User Login Siswa
+     *
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
@@ -109,6 +129,8 @@ class Student extends Model
 
     /**
      * Relasi ke User (Petugas/Admin) yang memverifikasi data siswa
+     *
+     * @return BelongsTo<User, $this>
      */
     public function verifier(): BelongsTo
     {
@@ -117,6 +139,8 @@ class Student extends Model
 
     /**
      * Relasi ke Data Keluarga Siswa
+     *
+     * @return HasOne<StudentFamily, $this>
      */
     public function family(): HasOne
     {
@@ -125,6 +149,8 @@ class Student extends Model
 
     /**
      * Relasi ke Riwayat Sekolah Asal Siswa
+     *
+     * @return HasMany<StudentEducationHistory, $this>
      */
     public function schoolHistory(): HasMany
     {
@@ -133,6 +159,8 @@ class Student extends Model
 
     /**
      * Relasi ke Riwayat Pendidikan Siswa
+     *
+     * @return HasMany<StudentEducationHistory, $this>
      */
     public function educationHistories(): HasMany
     {
@@ -141,6 +169,8 @@ class Student extends Model
 
     /**
      * Relasi ke Data Kesehatan Siswa
+     *
+     * @return HasOne<StudentHealth, $this>
      */
     public function health(): HasOne
     {
@@ -149,6 +179,8 @@ class Student extends Model
 
     /**
      * Relasi ke Prestasi Siswa
+     *
+     * @return HasMany<StudentAchievement, $this>
      */
     public function achievements(): HasMany
     {
@@ -157,6 +189,8 @@ class Student extends Model
 
     /**
      * Relasi ke Media Sosial Siswa
+     *
+     * @return HasMany<StudentSocial, $this>
      */
     public function socials(): HasMany
     {
@@ -165,6 +199,8 @@ class Student extends Model
 
     /**
      * Relasi ke Pelanggaran Siswa
+     *
+     * @return HasMany<StudentViolation, $this>
      */
     public function violations(): HasMany
     {
@@ -173,6 +209,8 @@ class Student extends Model
 
     /**
      * Relasi ke Dokumen / Berkas Siswa
+     *
+     * @return HasMany<StudentDocument, $this>
      */
     public function documents(): HasMany
     {

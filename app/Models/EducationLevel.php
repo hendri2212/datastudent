@@ -20,6 +20,8 @@ class EducationLevel extends Model
 
     /**
      * Relasi ke Riwayat Pendidikan Siswa
+     *
+     * @return HasMany<StudentEducationHistory, $this>
      */
     public function educationHistories(): HasMany
     {

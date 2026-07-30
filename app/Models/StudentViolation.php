@@ -17,11 +17,17 @@ class StudentViolation extends Model
         'point' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<Student, $this>
+     */
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function reporter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reported_by');

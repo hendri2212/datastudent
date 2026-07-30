@@ -11,6 +11,9 @@ class StudentStatus extends Model
 
     protected $guarded = ['id'];
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class, 'student_status_id');

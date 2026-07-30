@@ -14,7 +14,7 @@ class StudentDocument extends Model
     /**
      * Atribut yang secara otomatis ditambahkan ke serialisasi model.
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $appends = ['url'];
 
@@ -28,7 +28,7 @@ class StudentDocument extends Model
     /**
      * Atribut yang dapat diisi secara massal (Mass Assignment).
      *
-     * @var array<int, string>
+     * @var list<string>
      */
     protected $fillable = [
         'student_id',
@@ -65,7 +65,7 @@ class StudentDocument extends Model
     /**
      * Nilai default atribut model.
      *
-     * @var array
+     * @var array<string, mixed>
      */
     protected $attributes = [
         'disk'        => 'private',
@@ -98,6 +98,8 @@ class StudentDocument extends Model
 
     /**
      * Relasi ke model Student (Siswa pemilik dokumen).
+     *
+     * @return BelongsTo<Student, $this>
      */
     public function student(): BelongsTo
     {
@@ -106,6 +108,8 @@ class StudentDocument extends Model
 
     /**
      * Relasi ke model DocumentType (Jenis dokumen, misal: KK, Akta, Ijazah).
+     *
+     * @return BelongsTo<DocumentType, $this>
      */
     public function documentType(): BelongsTo
     {
@@ -114,6 +118,8 @@ class StudentDocument extends Model
 
     /**
      * Relasi ke model User (Petugas/Admin yang memverifikasi).
+     *
+     * @return BelongsTo<User, $this>
      */
     public function verifier(): BelongsTo
     {
@@ -122,6 +128,8 @@ class StudentDocument extends Model
 
     /**
      * Relasi ke model User (User/Admin yang mengunggah berkas).
+     *
+     * @return BelongsTo<User, $this>
      */
     public function uploader(): BelongsTo
     {

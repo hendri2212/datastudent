@@ -23,6 +23,8 @@ class StudentEducationHistory extends Model
 
     /**
      * Relasi balik ke Student
+     *
+     * @return BelongsTo<Student, $this>
      */
     public function student(): BelongsTo
     {
@@ -31,6 +33,8 @@ class StudentEducationHistory extends Model
 
     /**
      * Relasi ke EducationLevel
+     *
+     * @return BelongsTo<EducationLevel, $this>
      */
     public function educationLevel(): BelongsTo
     {

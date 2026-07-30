@@ -12,6 +12,9 @@ import {
     Heart,
     Eye,
     GraduationCap,
+    FileCheck, 
+    AlertTriangle, 
+    User,
     UserCheck,
     Copy,
     Check,
@@ -31,7 +34,6 @@ import {
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue'; 
 
-import StudentFormDialog from './StudentFormDialog.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,9 +45,10 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import StudentFormDialog from './StudentFormDialog.vue';
 
 // Import Types Terpusat
-import { 
+import type { 
     Student, 
     School, 
     Major, 
@@ -103,13 +106,18 @@ const props = defineProps<{
 
 // Normalisasi Array Siswa
 const studentList = computed<Student[]>(() => {
-    if (!props.students) return [];
+    if (!props.students) {
+return [];
+}
+
     if (Array.isArray(props.students)) {
         return props.students.filter((s): s is Student => s !== null && s !== undefined);
     }
+
     if (Array.isArray(props.students.data)) {
         return props.students.data.filter((s): s is Student => s !== null && s !== undefined);
     }
+
     return [];
 });
 
@@ -117,6 +125,7 @@ const paginationMeta = computed(() => {
     if (props.students && !Array.isArray(props.students)) {
         return props.students;
     }
+
     return null;
 });
 
@@ -135,15 +144,20 @@ const unverifiedStudentsCount = computed(() => {
 
 const genderStats = computed(() => {
     const counts: Record<string, number> = {};
+
     if (props.genders) {
         props.genders.forEach(g => {
-            if (g?.name) counts[g.name] = 0;
+            if (g?.name) {
+counts[g.name] = 0;
+}
         });
     }
+
     studentList.value.forEach(s => {
         const genderName = s.gender?.name || 'Lainnya';
         counts[genderName] = (counts[genderName] || 0) + 1;
     });
+
     return counts;
 });
 
@@ -156,6 +170,7 @@ const totalAchievementCount = computed(() => {
 const totalViolationPoints = computed(() => {
     return studentList.value.reduce((total, student) => {
         const points = student.violations?.reduce((sum, violation) => sum + (Number(violation.point) || 0), 0) || 0;
+
         return total + points;
     }, 0);
 });
@@ -185,20 +200,48 @@ const copiedKey = ref<string | null>(null);
 // Menghitung Jumlah Filter Aktif
 const activeFilterCount = computed(() => {
     let count = 0;
-    if (selectedClassroom.value) count++;
-    if (selectedMajor.value) count++;
-    if (selectedAcademicYear.value) count++;
-    if (selectedCitizenship.value) count++;
-    if (selectedGender.value) count++;
-    if (selectedReligion.value) count++;
-    if (selectedStudentStatus.value) count++;
-    if (selectedBloodType.value) count++;
+
+    if (selectedClassroom.value) {
+count++;
+}
+
+    if (selectedMajor.value) {
+count++;
+}
+
+    if (selectedAcademicYear.value) {
+count++;
+}
+
+    if (selectedCitizenship.value) {
+count++;
+}
+
+    if (selectedGender.value) {
+count++;
+}
+
+    if (selectedReligion.value) {
+count++;
+}
+
+    if (selectedStudentStatus.value) {
+count++;
+}
+
+    if (selectedBloodType.value) {
+count++;
+}
+
     return count;
 });
 
 // Helper Status Verifikasi Siswa
 const isStudentVerified = (student: Student | null): boolean => {
-    if (!student) return false;
+    if (!student) {
+return false;
+}
+
     return Boolean(student.verified_at || student.is_locked);
 };
 
@@ -280,7 +323,9 @@ const handleOpenDeleteModal = (student: Student) => {
 };
 
 const handleDelete = () => {
-    if (!selectedStudent.value?.id) return;
+    if (!selectedStudent.value?.id) {
+return;
+}
     
     isSubmitting.value = true;
     router.delete(`/students/${selectedStudent.value.id}`, {
@@ -295,7 +340,9 @@ const handleDelete = () => {
 };
 
 const handleVerifyStudent = (student: Student) => {
-    if (!student?.id) return;
+    if (!student?.id) {
+return;
+}
 
     router.post(`/students/${student.id}/verify`, {}, {
         preserveScroll: true,
@@ -304,7 +351,9 @@ const handleVerifyStudent = (student: Student) => {
 };
 
 const handleUnverifyStudent = (student: Student) => {
-    if (!student?.id) return;
+    if (!student?.id) {
+return;
+}
 
     router.post(`/students/${student.id}/unverify`, {}, {
         preserveScroll: true,
@@ -313,14 +362,20 @@ const handleUnverifyStudent = (student: Student) => {
 };
 
 const handleRestore = (student: Student) => {
-    if (!student?.id) return;
+    if (!student?.id) {
+return;
+}
+
     router.post(`/students/${student.id}/restore`, {}, {
         preserveScroll: true,
     });
 };
 
 const handleForceDelete = (student: Student) => {
-    if (!student?.id) return;
+    if (!student?.id) {
+return;
+}
+
     if (!confirm('Yakin ingin menghapus siswa ini secara permanen? Tindakan ini tidak bisa dikembalikan.')) {
         return;
     }
@@ -332,7 +387,10 @@ const handleForceDelete = (student: Student) => {
 
 // Clipboard Helpers
 const copyToClipboard = (text: string | undefined | null, key: string) => {
-    if (!text) return;
+    if (!text) {
+return;
+}
+
     navigator.clipboard.writeText(text).then(() => {
         copiedKey.value = key;
         setTimeout(() => {
@@ -342,7 +400,9 @@ const copyToClipboard = (text: string | undefined | null, key: string) => {
 };
 
 const copySummaryText = (student: Student | null) => {
-    if (!student) return;
+    if (!student) {
+return;
+}
 
     const summary = `
 === DETAIL DATA SISWA ===
@@ -371,33 +431,61 @@ const formatSocialUrl = (url?: string, username?: string, platform?: string) => 
     if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
         return url;
     }
+
     if (url) {
         return `https://${url}`;
     }
+
     if (username && platform) {
         const plat = platform.toLowerCase();
-        if (plat.includes('instagram')) return `https://instagram.com/${username.replace('@', '')}`;
-        if (plat.includes('facebook')) return `https://facebook.com/${username}`;
-        if (plat.includes('twitter') || plat.includes('x')) return `https://x.com/${username.replace('@', '')}`;
-        if (plat.includes('tiktok')) return `https://tiktok.com/@${username.replace('@', '')}`;
-        if (plat.includes('linkedin')) return `https://linkedin.com/in/${username}`;
+
+        if (plat.includes('instagram')) {
+return `https://instagram.com/${username.replace('@', '')}`;
+}
+
+        if (plat.includes('facebook')) {
+return `https://facebook.com/${username}`;
+}
+
+        if (plat.includes('twitter') || plat.includes('x')) {
+return `https://x.com/${username.replace('@', '')}`;
+}
+
+        if (plat.includes('tiktok')) {
+return `https://tiktok.com/@${username.replace('@', '')}`;
+}
+
+        if (plat.includes('linkedin')) {
+return `https://linkedin.com/in/${username}`;
+}
     }
+
     return '#';
 };
 
 const getDocumentPreviewUrl = (doc: StudentDocument) => {
-    if (!selectedStudent.value?.id || !doc.id) return '#';
+    if (!selectedStudent.value?.id || !doc.id) {
+return '#';
+}
+
     return `/students/${selectedStudent.value.id}/documents/${doc.id}/preview`;
 };
 
 const getDocumentDownloadUrl = (doc: StudentDocument) => {
-    if (!selectedStudent.value?.id || !doc.id) return '#';
+    if (!selectedStudent.value?.id || !doc.id) {
+return '#';
+}
+
     return `/students/${selectedStudent.value.id}/documents/${doc.id}/download`;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const shareDocument = async (doc: StudentDocument) => {
     const url = getDocumentPreviewUrl(doc);
-    if (!url) return;
+
+    if (!url) {
+        return;
+    }
 
     const sharePayload = {
         title: doc.original_name || doc.stored_name || doc.file_name || 'Dokumen Siswa',
@@ -408,9 +496,10 @@ const shareDocument = async (doc: StudentDocument) => {
     if (navigator.share) {
         try {
             await navigator.share(sharePayload);
-        } catch (error) {
-            // Cancelled
+        } catch {
+            // Cancelled by user — safely ignored
         }
+
         return;
     }
 
@@ -649,15 +738,20 @@ const shareDocument = async (doc: StudentDocument) => {
                         <Link
                             v-if="link.url"
                             :href="link.url"
-                            v-html="link.label"
                             :class="[
                                 'px-3 py-1.5 rounded-md border transition-colors',
                                 link.active 
                                     ? 'bg-blue-600 text-white border-blue-600 font-bold' 
                                     : 'bg-white dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50'
                             ]"
+                        >
+                            <span v-html="link.label" />
+                        </Link>
+                        <span 
+                            v-else 
+                            v-html="link.label" 
+                            class="px-3 py-1.5 text-neutral-300 dark:text-neutral-600 border border-transparent"
                         />
-                        <span v-else v-html="link.label" class="px-3 py-1.5 text-neutral-300 dark:text-neutral-600 border border-transparent"></span>
                     </template>
                 </div>
             </div>

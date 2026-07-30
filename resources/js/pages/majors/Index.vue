@@ -44,8 +44,12 @@ const selectedMajor = ref<Major | null>(null);
 const deleteDialogOpen = ref(false);
 
 const filteredMajors = computed(() => {
-    if (!search.value) return props.majors;
+    if (!search.value) {
+return props.majors;
+}
+
     const query = search.value.toLowerCase();
+
     return props.majors.filter(
         (m) =>
             m.code.toLowerCase().includes(query) ||
@@ -117,7 +121,9 @@ const saveMajor = (data: MajorFormData) => {
 };
 
 const deleteMajor = () => {
-    if (!selectedMajor.value) return;
+    if (!selectedMajor.value) {
+return;
+}
 
     router.delete(`/majors/${selectedMajor.value.id}`, {
         onSuccess: () => {

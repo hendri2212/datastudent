@@ -228,6 +228,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // 16. Data Default Kelas (Classroom)
+        // 16. Data Default Kelas (Classroom)
         $classrooms = [
             ['name' => 'X-TKJ-1', 'major_code' => 'TKJ', 'level' => 'X', 'rombel' => 1],
             ['name' => 'X-TKJ-2', 'major_code' => 'TKJ', 'level' => 'X', 'rombel' => 2],
@@ -235,11 +236,9 @@ class DatabaseSeeder extends Seeder
             ['name' => 'XI-MM-1', 'major_code' => 'MM', 'level' => 'XI', 'rombel' => 1],
             ['name' => 'XII-AKL-1', 'major_code' => 'AKL', 'level' => 'XII', 'rombel' => 1],
         ];
+        
         foreach ($classrooms as $classroom) {
-            $major = $majorMap[$classroom['major_code']] ?? null;
-            if (! $major) {
-                continue;
-            }
+            $major = $majorMap[$classroom['major_code']];
 
             Classroom::firstOrCreate(
                 ['major_id' => $major->id, 'name' => $classroom['name']],

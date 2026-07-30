@@ -15,6 +15,9 @@ class DocumentType extends Model
         'is_required', // Rekomendasi kolom jika ada
     ];
 
+    /**
+     * @return HasMany<StudentDocument, $this>
+     */
     public function studentDocuments(): HasMany
     {
         return $this->hasMany(StudentDocument::class);

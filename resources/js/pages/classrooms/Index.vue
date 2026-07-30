@@ -120,6 +120,7 @@ const totalStudents = computed(() =>
 
 const availableRombels = computed(() => {
     const list = props.classrooms.map(c => c.rombel);
+
     return Array.from(new Set(list)).sort((a, b) => a - b);
 });
 
@@ -128,8 +129,14 @@ const filteredClassrooms = computed(() => {
     return props.classrooms.filter((item) => {
         // Tab check
         const isTrashed = !!item.deleted_at;
-        if (activeTab.value === 'trashed' && !isTrashed) return false;
-        if (activeTab.value === 'active' && isTrashed) return false;
+
+        if (activeTab.value === 'trashed' && !isTrashed) {
+return false;
+}
+
+        if (activeTab.value === 'active' && isTrashed) {
+return false;
+}
 
         // Search & Dropdown filters
         const q = searchQuery.value.toLowerCase();
@@ -157,6 +164,7 @@ const totalPages = computed(() => Math.ceil(filteredClassrooms.value.length / it
 
 const paginatedClassrooms = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
+
     return filteredClassrooms.value.slice(start, start + itemsPerPage.value);
 });
 
@@ -181,6 +189,7 @@ const switchTab = (tab: 'active' | 'trashed') => {
 
 const selectedMajorCode = computed(() => {
     const major = props.majors.find((m) => m.id === addForm.major_id);
+
     return major ? major.code : 'JURUSAN';
 });
 
@@ -228,7 +237,10 @@ const submitAdd = () => {
 };
 
 const submitEdit = () => {
-    if (!selectedClassroom.value) return;
+    if (!selectedClassroom.value) {
+return;
+}
+
     editForm.put(`/classrooms/${selectedClassroom.value.id}`, {
         onSuccess: () => {
             isEditModalOpen.value = false;
@@ -237,33 +249,51 @@ const submitEdit = () => {
 };
 
 const submitSoftDelete = () => {
-    if (!selectedClassroom.value) return;
+    if (!selectedClassroom.value) {
+return;
+}
+
     router.delete(`/classrooms/${selectedClassroom.value.id}`, {
-        onStart: () => { isDeleting.value = true; },
+        onStart: () => {
+ isDeleting.value = true; 
+},
         onSuccess: () => {
             isDeleteModalOpen.value = false;
             selectedClassroom.value = null;
         },
-        onFinish: () => { isDeleting.value = false; },
+        onFinish: () => {
+ isDeleting.value = false; 
+},
     });
 };
 
 const submitRestore = (item: Classroom) => {
     router.post(`/classrooms/${item.id}/restore`, {}, {
-        onStart: () => { restoringId.value = item.id; },
-        onFinish: () => { restoringId.value = null; },
+        onStart: () => {
+ restoringId.value = item.id; 
+},
+        onFinish: () => {
+ restoringId.value = null; 
+},
     });
 };
 
 const submitForceDelete = () => {
-    if (!selectedClassroom.value) return;
+    if (!selectedClassroom.value) {
+return;
+}
+
     router.delete(`/classrooms/${selectedClassroom.value.id}/force-delete`, {
-        onStart: () => { isForceDeleting.value = true; },
+        onStart: () => {
+ isForceDeleting.value = true; 
+},
         onSuccess: () => {
             isForceDeleteModalOpen.value = false;
             selectedClassroom.value = null;
         },
-        onFinish: () => { isForceDeleting.value = false; },
+        onFinish: () => {
+ isForceDeleting.value = false; 
+},
     });
 };
 </script>

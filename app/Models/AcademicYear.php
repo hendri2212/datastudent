@@ -15,6 +15,9 @@ class AcademicYear extends Model
         'end_date' => 'date',
     ];
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

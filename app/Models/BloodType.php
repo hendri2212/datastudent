@@ -13,11 +13,17 @@ class BloodType extends Model
         'name',
     ];
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);
     }
 
+    /**
+     * @return HasMany<StudentHealth, $this>
+     */
     public function studentHealths(): HasMany
     {
         return $this->hasMany(StudentHealth::class);

@@ -21,6 +21,8 @@ class StudentSocial extends Model
 
     /**
      * Relasi balik ke Student
+     *
+     * @return BelongsTo<Student, $this>
      */
     public function student(): BelongsTo
     {
@@ -29,6 +31,8 @@ class StudentSocial extends Model
 
     /**
      * Relasi ke SocialPlatform
+     *
+     * @return BelongsTo<SocialPlatform, $this>
      */
     public function socialPlatform(): BelongsTo
     {

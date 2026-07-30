@@ -3,17 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Citizenship;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CitizenshipController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
         $citizenships = Citizenship::all();
         return response()->json($citizenships);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:citizenships,name',
@@ -27,12 +28,12 @@ class CitizenshipController extends Controller
         ], 201);
     }
 
-    public function show(Citizenship $citizenship)
+    public function show(Citizenship $citizenship): JsonResponse
     {
         return response()->json($citizenship);
     }
 
-    public function update(Request $request, Citizenship $citizenship)
+    public function update(Request $request, Citizenship $citizenship): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:100|unique:citizenships,name,' . $citizenship->id,
@@ -46,7 +47,7 @@ class CitizenshipController extends Controller
         ]);
     }
 
-    public function destroy(Citizenship $citizenship)
+    public function destroy(Citizenship $citizenship): JsonResponse
     {
         $citizenship->delete();
 

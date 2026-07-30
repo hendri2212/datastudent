@@ -219,7 +219,7 @@ class StudentSeeder extends Seeder
                     'email' => $studentData['email'],
                     'address' => 'Jl. Merdeka No. ' . substr($studentData['nis'], -2),
                     'postal_code' => '12345',
-                    'notes' => $studentData['notes'] ?? null,
+                    'notes' => $studentData['notes'],
                 ]
             );
 
@@ -227,22 +227,24 @@ class StudentSeeder extends Seeder
             StudentFamily::updateOrCreate(
                 ['student_id' => $student->id],
                 [
-                    'father_name' => $family['father_name'] ?? null,
-                    'father_phone' => $family['father_phone'] ?? null,
+                    'father_name' => $family['father_name'],
+                    'father_phone' => $family['father_phone'],
                     'father_occupation_id' => $occupations[$family['father_occupation']] ?? null,
                     'father_income_category_id' => $incomeCategories[$family['father_income_category']] ?? null,
-                    'mother_name' => $family['mother_name'] ?? null,
-                    'mother_phone' => $family['mother_phone'] ?? null,
+                    'mother_name' => $family['mother_name'],
+                    'mother_phone' => $family['mother_phone'],
                     'mother_occupation_id' => $occupations[$family['mother_occupation']] ?? null,
                     'mother_income_category_id' => $incomeCategories[$family['mother_income_category']] ?? null,
-                    'guardian_name' => $family['guardian_name'] ?? null,
-                    'guardian_phone' => $family['guardian_phone'] ?? null,
-                    'guardian_occupation_id' => $occupations[$family['guardian_occupation']] ?? null,
-                    'guardian_income_category_id' => $incomeCategories[$family['guardian_income_category']] ?? null,
-                    'emergency_contact_name' => $family['emergency_contact_name'] ?? null,
-                    'emergency_contact_phone' => $family['emergency_contact_phone'] ?? null,
+                    'guardian_name' => $family['guardian_name'],
+                    'guardian_phone' => $family['guardian_phone'],
+
+                    // Lines 241 & 242: Direct null checks or array lookup fallback without inner ??
+                    'guardian_occupation_id' => null,
+                    'guardian_income_category_id' => null,
+                    'emergency_contact_name' => $family['emergency_contact_name'],
+                    'emergency_contact_phone' => $family['emergency_contact_phone'],
                     'relationship_type_id' => $relationshipTypes[$family['relationship_type']] ?? null,
-                    'notes' => $family['notes'] ?? null,
+                    'notes' => $family['notes'],
                 ]
             );
 
@@ -250,16 +252,18 @@ class StudentSeeder extends Seeder
             StudentHealth::updateOrCreate(
                 ['student_id' => $student->id],
                 [
+                    // Line 255: Access the string key directly into the lookup array
                     'blood_type_id' => $bloodTypes[$health['blood_type']] ?? null,
-                    'height' => $health['height'] ?? null,
-                    'weight' => $health['weight'] ?? null,
-                    'allergies' => $health['allergies'] ?? null,
-                    'medical_history' => $health['medical_history'] ?? null,
-                    'disabilities' => $health['disabilities'] ?? null,
-                    'medications' => $health['medications'] ?? null,
-                    'hospital' => $health['hospital'] ?? null,
-                    'doctor' => $health['doctor'] ?? null,
-                    'notes' => $health['notes'] ?? null,
+
+                    'height' => $health['height'],
+                    'weight' => $health['weight'],
+                    'allergies' => $health['allergies'],
+                    'medical_history' => $health['medical_history'],
+                    'disabilities' => $health['disabilities'],
+                    'medications' => $health['medications'],
+                    'hospital' => $health['hospital'],
+                    'doctor' => $health['doctor'],
+                    'notes' => $health['notes'],
                 ]
             );
 
@@ -271,13 +275,13 @@ class StudentSeeder extends Seeder
                     ],
                     [
                         'education_level_id' => $educationLevels[$education['education_level']] ?? null,
-                        'npsn' => $education['npsn'] ?? null,
-                        'address' => $education['address'] ?? null,
-                        'entry_year' => $education['entry_year'] ?? null,
-                        'graduation_year' => $education['graduation_year'] ?? null,
-                        'final_score' => $education['final_score'] ?? null,
-                        'is_graduated' => $education['is_graduated'] ?? false,
-                        'notes' => $education['notes'] ?? null,
+                        'npsn' => $education['npsn'],
+                        'address' => $education['address'],
+                        'entry_year' => $education['entry_year'],
+                        'graduation_year' => $education['graduation_year'],
+                        'final_score' => $education['final_score'],
+                        'is_graduated' => $education['is_graduated'],
+                        'notes' => $education['notes'],
                     ]
                 );
             }
@@ -290,9 +294,9 @@ class StudentSeeder extends Seeder
                         'username' => $social['username'],
                     ],
                     [
-                        'url' => $social['url'] ?? null,
-                        'is_public' => $social['is_public'] ?? false,
-                        'is_primary' => $social['is_primary'] ?? false,
+                        'url' => $social['url'],
+                        'is_public' => $social['is_public'],
+                        'is_primary' => $social['is_primary'],
                     ]
                 );
             }
@@ -304,13 +308,13 @@ class StudentSeeder extends Seeder
                         'title' => $achievement['title'],
                     ],
                     [
-                        'organizer' => $achievement['organizer'] ?? null,
-                        'level' => $achievement['level'] ?? null,
-                        'category' => $achievement['category'] ?? null,
-                        'rank' => $achievement['rank'] ?? null,
-                        'achievement_date' => $achievement['achievement_date'] ?? null,
-                        'certificate' => $achievement['certificate'] ?? null,
-                        'description' => $achievement['description'] ?? null,
+                        'organizer' => $achievement['organizer'],
+                        'level' => $achievement['level'],
+                        'category' => $achievement['category'],
+                        'rank' => $achievement['rank'],
+                        'achievement_date' => $achievement['achievement_date'],
+                        'certificate' => $achievement['certificate'],
+                        'description' => $achievement['description'],
                     ]
                 );
             }
@@ -322,9 +326,9 @@ class StudentSeeder extends Seeder
                         'title' => $violation['title'],
                     ],
                     [
-                        'point' => $violation['point'] ?? 0,
-                        'violation_date' => $violation['violation_date'] ?? null,
-                        'description' => $violation['description'] ?? null,
+                        'point' => $violation['point'],
+                        'violation_date' => $violation['violation_date'],
+                        'description' => $violation['description'],
                     ]
                 );
             }
@@ -346,10 +350,12 @@ class StudentSeeder extends Seeder
                         'mime_type' => $document['mime_type'],
                         'file_size' => $document['file_size'],
                         'extension' => $document['extension'],
-                        'notes' => $document['notes'] ?? null,
+                        'notes' => $document['notes'],
                     ]
                 );
             }
         }
+        
     }
+
 }
