@@ -33,8 +33,8 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Kelas',
-        href: classroomsIndex(), 
-        icon: School,        
+        href: classroomsIndex(),
+        icon: School,
     },
     {
         title: 'Siswa',
