@@ -126,7 +126,6 @@ const totalStudents = computed(() =>
 
 const availableRombels = computed(() => {
     const list = props.classrooms.map((c) => c.rombel);
-
     return Array.from(new Set(list)).sort((a, b) => a - b);
 });
 
@@ -136,12 +135,18 @@ const filteredClassrooms = computed(() => {
         // Tab check
         const isTrashed = !!item.deleted_at;
 
+
         if (activeTab.value === 'trashed' && !isTrashed) {
-            return false;
+            {
+                return false;
+            }
+
         }
 
         if (activeTab.value === 'active' && isTrashed) {
-            return false;
+            {
+                return false;
+            }
         }
 
         // Search & Dropdown filters
@@ -188,6 +193,7 @@ const totalPages = computed(
 
 const paginatedClassrooms = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage.value;
+
 
     return filteredClassrooms.value.slice(start, start + itemsPerPage.value);
 });
@@ -313,18 +319,14 @@ const submitSoftDelete = () => {
 };
 
 const submitRestore = (item: Classroom) => {
-    router.post(
-        `/classrooms/${item.id}/restore`,
-        {},
-        {
-            onStart: () => {
-                restoringId.value = item.id;
-            },
-            onFinish: () => {
-                restoringId.value = null;
-            },
+    router.post(`/classrooms/${item.id}/restore`, {}, {
+        onStart: () => {
+            restoringId.value = item.id;
         },
-    );
+        onFinish: () => {
+            restoringId.value = null;
+        },
+    });
 };
 
 const submitForceDelete = () => {
@@ -348,17 +350,14 @@ const submitForceDelete = () => {
 </script>
 
 <template>
+
     <Head title="Data Kelas" />
 
     <div class="min-h-screen bg-neutral-50/50 p-6 dark:bg-neutral-900/50">
         <div class="mx-auto max-w-7xl space-y-6">
-            <div
-                class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
-            >
+            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                    <h1
-                        class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100"
-                    >
+                    <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         Manajemen Kelas
                     </h1>
                     <p class="text-sm text-neutral-500 dark:text-neutral-400">
@@ -373,16 +372,10 @@ const submitForceDelete = () => {
             </div>
 
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div
-                    class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
-                >
+                <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                     <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium text-neutral-500"
-                            >Total Rombel Kelas</span
-                        >
-                        <div
-                            class="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400"
-                        >
+                        <span class="text-sm font-medium text-neutral-500">Total Rombel Kelas</span>
+                        <div class="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
                             <School class="size-5" />
                         </div>
                     </div>
@@ -391,16 +384,11 @@ const submitForceDelete = () => {
                     </div>
                 </div>
 
-                <div
-                    class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
-                >
+                <div class="rounded-xl border bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                     <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium text-neutral-500"
-                            >Total Siswa Terdaftar</span
-                        >
+                        <span class="text-sm font-medium text-neutral-500">Total Siswa Terdaftar</span>
                         <div
-                            class="rounded-lg bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
-                        >
+                            class="rounded-lg bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
                             <Users class="size-5" />
                         </div>
                     </div>
@@ -410,15 +398,11 @@ const submitForceDelete = () => {
                 </div>
 
                 <div
-                    class="rounded-xl border bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1 dark:border-neutral-800 dark:bg-neutral-900"
-                >
+                    class="rounded-xl border bg-white p-5 shadow-sm sm:col-span-2 lg:col-span-1 dark:border-neutral-800 dark:bg-neutral-900">
                     <div class="flex items-center justify-between">
-                        <span class="text-sm font-medium text-neutral-500"
-                            >Total Jurusan</span
-                        >
+                        <span class="text-sm font-medium text-neutral-500">Total Jurusan</span>
                         <div
-                            class="rounded-lg bg-violet-50 p-2 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400"
-                        >
+                            class="rounded-lg bg-violet-50 p-2 text-violet-600 dark:bg-violet-950/50 dark:text-violet-400">
                             <GraduationCap class="size-5" />
                         </div>
                     </div>
@@ -428,111 +412,70 @@ const submitForceDelete = () => {
                 </div>
             </div>
 
-            <div
-                class="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800"
-            >
-                <button
-                    @click="switchTab('active')"
-                    :class="[
-                        'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                        activeTab === 'active'
-                            ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
-                            : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800',
-                    ]"
-                >
+            <div class="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
+                <button @click="switchTab('active')" :class="[
+                    'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                    activeTab === 'active'
+                        ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+                        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800',
+                ]">
                     Kelas Aktif
                 </button>
-                <button
-                    @click="switchTab('trashed')"
-                    :class="[
-                        'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                        activeTab === 'trashed'
-                            ? 'bg-rose-600 text-white'
-                            : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800',
-                    ]"
-                >
+                <button @click="switchTab('trashed')" :class="[
+                    'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                    activeTab === 'trashed'
+                        ? 'bg-rose-600 text-white'
+                        : 'text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800',
+                ]">
                     <Archive class="size-4" />
                     Tempat Sampah
-                    <Badge
-                        v-if="trashedCount > 0"
-                        variant="secondary"
-                        class="ml-1"
-                    >
+                    <Badge v-if="trashedCount > 0" variant="secondary" class="ml-1">
                         {{ trashedCount }}
                     </Badge>
                 </button>
             </div>
 
-            <div
-                class="rounded-xl border bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
-            >
+            <div class="rounded-xl border bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
                 <div
-                    class="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between dark:border-neutral-800"
-                >
+                    class="flex flex-col gap-3 border-b p-4 lg:flex-row lg:items-center lg:justify-between dark:border-neutral-800">
                     <div class="relative w-full lg:w-72">
-                        <Search
-                            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
-                        />
-                        <Input
-                            v-model="searchQuery"
-                            type="text"
-                            placeholder="Cari nama kelas / jurusan..."
-                            class="pl-9"
-                        />
+                        <Search class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400" />
+                        <Input v-model="searchQuery" type="text" placeholder="Cari nama kelas / jurusan..."
+                            class="pl-9" />
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <div
-                            class="mr-1 flex items-center gap-1.5 text-xs font-medium text-neutral-500"
-                        >
+                        <div class="mr-1 flex items-center gap-1.5 text-xs font-medium text-neutral-500">
                             <Filter class="size-3.5" /> Filter:
                         </div>
 
-                        <select
-                            v-model="selectedLevel"
-                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
-                        >
+                        <select v-model="selectedLevel"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900">
                             <option value="">Semua Tingkat</option>
                             <option value="X">Tingkat X</option>
                             <option value="XI">Tingkat XI</option>
                             <option value="XII">Tingkat XII</option>
                         </select>
 
-                        <select
-                            v-model="selectedMajor"
-                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
-                        >
+                        <select v-model="selectedMajor"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900">
                             <option value="">Semua Jurusan</option>
-                            <option
-                                v-for="m in majors"
-                                :key="m.id"
-                                :value="m.id.toString()"
-                            >
+                            <option v-for="m in majors" :key="m.id" :value="m.id.toString()">
                                 {{ m.code }} - {{ m.name }}
                             </option>
                         </select>
 
-                        <select
-                            v-model="selectedRombel"
-                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900"
-                        >
+                        <select v-model="selectedRombel"
+                            class="h-9 rounded-md border border-neutral-200 bg-white px-3 py-1 text-xs dark:border-neutral-800 dark:bg-neutral-900">
                             <option value="">Semua Rombel</option>
-                            <option
-                                v-for="r in availableRombels"
-                                :key="r"
-                                :value="r.toString()"
-                            >
+                            <option v-for="r in availableRombels" :key="r" :value="r.toString()">
                                 Rombel {{ r }}
                             </option>
                         </select>
 
-                        <Button
-                            v-if="isFilterActive"
-                            variant="ghost"
-                            size="sm"
+                        <Button v-if="isFilterActive" variant="ghost" size="sm"
                             class="h-9 gap-1 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400"
-                            @click="resetFilters"
-                        >
+                            @click="resetFilters">
                             <X class="size-3.5" />
                             Reset
                         </Button>
@@ -541,9 +484,7 @@ const submitForceDelete = () => {
 
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
-                        <thead
-                            class="bg-neutral-50 text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400"
-                        >
+                        <thead class="bg-neutral-50 text-neutral-500 dark:bg-neutral-800/50 dark:text-neutral-400">
                             <tr>
                                 <th class="px-6 py-3 font-medium">
                                     Nama Kelas
@@ -561,14 +502,9 @@ const submitForceDelete = () => {
                             </tr>
                         </thead>
                         <tbody class="divide-y dark:divide-neutral-800">
-                            <tr
-                                v-for="item in paginatedClassrooms"
-                                :key="item.id"
-                                class="transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50"
-                            >
-                                <td
-                                    class="px-6 py-4 font-semibold text-neutral-900 dark:text-neutral-100"
-                                >
+                            <tr v-for="item in paginatedClassrooms" :key="item.id"
+                                class="transition-colors hover:bg-neutral-50/50 dark:hover:bg-neutral-800/50">
+                                <td class="px-6 py-4 font-semibold text-neutral-900 dark:text-neutral-100">
                                     {{ item.name }}
                                 </td>
                                 <td class="px-6 py-4">
@@ -579,9 +515,7 @@ const submitForceDelete = () => {
                                 <td class="px-6 py-4 font-medium">
                                     Rombel {{ item.rombel }}
                                 </td>
-                                <td
-                                    class="px-6 py-4 text-neutral-600 dark:text-neutral-300"
-                                >
+                                <td class="px-6 py-4 text-neutral-600 dark:text-neutral-300">
                                     {{ item.major?.name || '-' }} ({{
                                         item.major?.code || '-'
                                     }})
@@ -590,13 +524,10 @@ const submitForceDelete = () => {
                                     {{ item.studentCount }} Siswa
                                 </td>
                                 <td class="px-6 py-4">
-                                    <Badge
-                                        :variant="
-                                            item.status === 'Aktif'
-                                                ? 'default'
-                                                : 'secondary'
-                                        "
-                                    >
+                                    <Badge :variant="item.status === 'Aktif'
+                                        ? 'default'
+                                        : 'secondary'
+                                        ">
                                         {{ item.status }}
                                     </Badge>
                                 </td>
@@ -604,43 +535,27 @@ const submitForceDelete = () => {
                                     <template v-if="activeTab === 'active'">
                                         <DropdownMenu>
                                             <DropdownMenuTrigger as-child>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                >
-                                                    <MoreHorizontal
-                                                        class="size-4"
-                                                    />
+                                                <Button variant="ghost" size="icon">
+                                                    <MoreHorizontal class="size-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem
-                                                    @click="
-                                                        openStatusModal(item)
-                                                    "
-                                                >
+                                                <DropdownMenuItem @click="
+                                                    openStatusModal(item)
+                                                    ">
                                                     <Info class="mr-2 size-4" />
                                                     Detail Statistik
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    @click="openEditModal(item)"
-                                                >
-                                                    <Pencil
-                                                        class="mr-2 size-4"
-                                                    />
+                                                <DropdownMenuItem @click="openEditModal(item)">
+                                                    <Pencil class="mr-2 size-4" />
                                                     Edit
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    class="text-rose-600 dark:text-rose-400"
-                                                    @click="
-                                                        openSoftDeleteModal(
-                                                            item,
-                                                        )
-                                                    "
-                                                >
-                                                    <Trash2
-                                                        class="mr-2 size-4"
-                                                    />
+                                                <DropdownMenuItem class="text-rose-600 dark:text-rose-400" @click="
+                                                    openSoftDeleteModal(
+                                                        item,
+                                                    )
+                                                    ">
+                                                    <Trash2 class="mr-2 size-4" />
                                                     Pindahkan ke Sampah
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -648,28 +563,14 @@ const submitForceDelete = () => {
                                     </template>
 
                                     <template v-else>
-                                        <div
-                                            class="flex items-center justify-end gap-2"
-                                        >
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                class="gap-1.5 text-emerald-600 hover:text-emerald-700"
-                                                :disabled="
+                                        <div class="flex items-center justify-end gap-2">
+                                            <Button size="sm" variant="outline"
+                                                class="gap-1.5 text-emerald-600 hover:text-emerald-700" :disabled="restoringId === item.id
+                                                    " @click="submitRestore(item)">
+                                                <Loader2 v-if="
                                                     restoringId === item.id
-                                                "
-                                                @click="submitRestore(item)"
-                                            >
-                                                <Loader2
-                                                    v-if="
-                                                        restoringId === item.id
-                                                    "
-                                                    class="size-3.5 animate-spin"
-                                                />
-                                                <RotateCcw
-                                                    v-else
-                                                    class="size-3.5"
-                                                />
+                                                " class="size-3.5 animate-spin" />
+                                                <RotateCcw v-else class="size-3.5" />
                                                 {{
                                                     restoringId === item.id
                                                         ? 'Memulihkan...'
@@ -677,14 +578,9 @@ const submitForceDelete = () => {
                                                 }}
                                             </Button>
 
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                class="gap-1.5"
-                                                @click="
-                                                    openForceDeleteModal(item)
-                                                "
-                                            >
+                                            <Button size="sm" variant="destructive" class="gap-1.5" @click="
+                                                openForceDeleteModal(item)
+                                                ">
                                                 <Trash2 class="size-3.5" />
                                                 Hapus Permanen
                                             </Button>
@@ -693,10 +589,7 @@ const submitForceDelete = () => {
                                 </td>
                             </tr>
                             <tr v-if="filteredClassrooms.length === 0">
-                                <td
-                                    colspan="7"
-                                    class="p-8 text-center text-neutral-500"
-                                >
+                                <td colspan="7" class="p-8 text-center text-neutral-500">
                                     Data kelas tidak ditemukan.
                                 </td>
                             </tr>
@@ -705,11 +598,8 @@ const submitForceDelete = () => {
                 </div>
 
                 <div
-                    class="flex flex-col gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800"
-                >
-                    <div
-                        class="flex items-center gap-4 text-xs text-neutral-500"
-                    >
+                    class="flex flex-col gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800">
+                    <div class="flex items-center gap-4 text-xs text-neutral-500">
                         <span>
                             Menampilkan <strong>{{ startIndex }}</strong> -
                             <strong>{{ endIndex }}</strong> dari
@@ -719,10 +609,8 @@ const submitForceDelete = () => {
 
                         <div class="flex items-center gap-1.5">
                             <span>Per Halaman:</span>
-                            <select
-                                v-model="itemsPerPage"
-                                class="h-7 rounded border border-neutral-200 bg-white px-2 py-0 text-xs dark:border-neutral-800 dark:bg-neutral-900"
-                            >
+                            <select v-model="itemsPerPage"
+                                class="h-7 rounded border border-neutral-200 bg-white px-2 py-0 text-xs dark:border-neutral-800 dark:bg-neutral-900">
                                 <option :value="5">5</option>
                                 <option :value="10">10</option>
                                 <option :value="25">25</option>
@@ -732,56 +620,30 @@ const submitForceDelete = () => {
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            class="size-8"
-                            :disabled="currentPage === 1"
-                            @click="currentPage--"
-                        >
+                        <Button variant="outline" size="icon" class="size-8" :disabled="currentPage === 1"
+                            @click="currentPage--">
                             <ChevronLeft class="size-4" />
                         </Button>
 
                         <template v-for="page in totalPages" :key="page">
-                            <Button
-                                v-if="
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    Math.abs(page - currentPage) <= 1
-                                "
-                                :variant="
-                                    currentPage === page ? 'default' : 'outline'
-                                "
-                                size="sm"
-                                class="h-8 min-w-8 px-2 text-xs"
-                                @click="currentPage = page"
-                            >
+                            <Button v-if="
+                                page === 1 ||
+                                page === totalPages ||
+                                Math.abs(page - currentPage) <= 1
+                            " :variant="currentPage === page ? 'default' : 'outline'
+                                " size="sm" class="h-8 min-w-8 px-2 text-xs" @click="currentPage = page">
                                 {{ page }}
                             </Button>
-                            <span
-                                v-else-if="page === 2 && currentPage > 3"
-                                class="px-1 text-xs text-neutral-400"
-                                >...</span
-                            >
-                            <span
-                                v-else-if="
-                                    page === totalPages - 1 &&
-                                    currentPage < totalPages - 2
-                                "
-                                class="px-1 text-xs text-neutral-400"
-                                >...</span
-                            >
+                            <span v-else-if="page === 2 && currentPage > 3"
+                                class="px-1 text-xs text-neutral-400">...</span>
+                            <span v-else-if="
+                                page === totalPages - 1 &&
+                                currentPage < totalPages - 2
+                            " class="px-1 text-xs text-neutral-400">...</span>
                         </template>
 
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            class="size-8"
-                            :disabled="
-                                currentPage === totalPages || totalPages === 0
-                            "
-                            @click="currentPage++"
-                        >
+                        <Button variant="outline" size="icon" class="size-8" :disabled="currentPage === totalPages || totalPages === 0
+                            " @click="currentPage++">
                             <ChevronRight class="size-4" />
                         </Button>
                     </div>
@@ -803,11 +665,8 @@ const submitForceDelete = () => {
             <form @submit.prevent="submitAdd" class="space-y-4">
                 <div class="space-y-2">
                     <Label for="add-level">Tingkat Kelas</Label>
-                    <select
-                        id="add-level"
-                        v-model="addForm.level"
-                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                    >
+                    <select id="add-level" v-model="addForm.level"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
                         <option value="X">Tingkat X</option>
                         <option value="XI">Tingkat XI</option>
                         <option value="XII">Tingkat XII</option>
@@ -816,11 +675,8 @@ const submitForceDelete = () => {
 
                 <div class="space-y-2">
                     <Label for="add-major">Jurusan</Label>
-                    <select
-                        id="add-major"
-                        v-model="addForm.major_id"
-                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                    >
+                    <select id="add-major" v-model="addForm.major_id"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
                         <option value="" disabled>Pilih Jurusan</option>
                         <option v-for="m in majors" :key="m.id" :value="m.id">
                             {{ m.code }} - {{ m.name }}
@@ -828,27 +684,16 @@ const submitForceDelete = () => {
                     </select>
                 </div>
 
-                <div
-                    v-if="addForm.major_id"
-                    class="rounded-lg bg-blue-50 p-3 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-                >
+                <div v-if="addForm.major_id"
+                    class="rounded-lg bg-blue-50 p-3 text-xs text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                     Sistem akan otomatis menentukan rombel berikutnya untuk
-                    <strong>{{ addForm.level }} {{ selectedMajorCode }}</strong
-                    >.
+                    <strong>{{ addForm.level }} {{ selectedMajorCode }}</strong>.
                 </div>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="isAddModalOpen = false"
-                        >Batal</Button
-                    >
+                    <Button type="button" variant="outline" @click="isAddModalOpen = false">Batal</Button>
                     <Button type="submit" :disabled="addForm.processing">
-                        <Loader2
-                            v-if="addForm.processing"
-                            class="mr-2 size-4 animate-spin"
-                        />
+                        <Loader2 v-if="addForm.processing" class="mr-2 size-4 animate-spin" />
                         Simpan Kelas
                     </Button>
                 </DialogFooter>
@@ -868,11 +713,8 @@ const submitForceDelete = () => {
             <form @submit.prevent="submitEdit" class="space-y-4">
                 <div class="space-y-2">
                     <Label for="edit-level">Tingkat Kelas</Label>
-                    <select
-                        id="edit-level"
-                        v-model="editForm.level"
-                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                    >
+                    <select id="edit-level" v-model="editForm.level"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
                         <option value="X">Tingkat X</option>
                         <option value="XI">Tingkat XI</option>
                         <option value="XII">Tingkat XII</option>
@@ -881,11 +723,8 @@ const submitForceDelete = () => {
 
                 <div class="space-y-2">
                     <Label for="edit-major">Jurusan</Label>
-                    <select
-                        id="edit-major"
-                        v-model="editForm.major_id"
-                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                    >
+                    <select id="edit-major" v-model="editForm.major_id"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
                         <option v-for="m in majors" :key="m.id" :value="m.id">
                             {{ m.code }} - {{ m.name }}
                         </option>
@@ -894,40 +733,22 @@ const submitForceDelete = () => {
 
                 <div class="space-y-2">
                     <Label for="edit-rombel">Nomor Rombel</Label>
-                    <Input
-                        id="edit-rombel"
-                        type="number"
-                        v-model="editForm.rombel"
-                        min="1"
-                        max="20"
-                        required
-                    />
+                    <Input id="edit-rombel" type="number" v-model="editForm.rombel" min="1" max="20" required />
                 </div>
 
                 <div class="space-y-2">
                     <Label for="edit-status">Status</Label>
-                    <select
-                        id="edit-status"
-                        v-model="editForm.status"
-                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900"
-                    >
+                    <select id="edit-status" v-model="editForm.status"
+                        class="w-full rounded-md border border-neutral-200 bg-white p-2 text-sm dark:border-neutral-800 dark:bg-neutral-900">
                         <option value="Aktif">Aktif</option>
                         <option value="Nonaktif">Nonaktif</option>
                     </select>
                 </div>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        @click="isEditModalOpen = false"
-                        >Batal</Button
-                    >
+                    <Button type="button" variant="outline" @click="isEditModalOpen = false">Batal</Button>
                     <Button type="submit" :disabled="editForm.processing">
-                        <Loader2
-                            v-if="editForm.processing"
-                            class="mr-2 size-4 animate-spin"
-                        />
+                        <Loader2 v-if="editForm.processing" class="mr-2 size-4 animate-spin" />
                         Simpan Perubahan
                     </Button>
                 </DialogFooter>
@@ -945,22 +766,10 @@ const submitForceDelete = () => {
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-                <Button
-                    type="button"
-                    variant="outline"
-                    :disabled="isDeleting"
-                    @click="isDeleteModalOpen = false"
-                    >Batal</Button
-                >
-                <Button
-                    variant="destructive"
-                    :disabled="isDeleting"
-                    @click="submitSoftDelete"
-                >
-                    <Loader2
-                        v-if="isDeleting"
-                        class="mr-2 size-4 animate-spin"
-                    />
+                <Button type="button" variant="outline" :disabled="isDeleting"
+                    @click="isDeleteModalOpen = false">Batal</Button>
+                <Button variant="destructive" :disabled="isDeleting" @click="submitSoftDelete">
+                    <Loader2 v-if="isDeleting" class="mr-2 size-4 animate-spin" />
                     {{ isDeleting ? 'Memindahkan...' : 'Ya, Pindahkan' }}
                 </Button>
             </DialogFooter>
@@ -970,9 +779,7 @@ const submitForceDelete = () => {
     <Dialog v-model:open="isForceDeleteModalOpen">
         <DialogContent>
             <DialogHeader>
-                <DialogTitle class="text-rose-600"
-                    >Hapus Secara Permanen?</DialogTitle
-                >
+                <DialogTitle class="text-rose-600">Hapus Secara Permanen?</DialogTitle>
                 <DialogDescription>
                     Apakah Anda yakin ingin menghapus kelas
                     <strong>{{ selectedClassroom?.name }}</strong> secara
@@ -980,22 +787,10 @@ const submitForceDelete = () => {
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-                <Button
-                    type="button"
-                    variant="outline"
-                    :disabled="isForceDeleting"
-                    @click="isForceDeleteModalOpen = false"
-                    >Batal</Button
-                >
-                <Button
-                    variant="destructive"
-                    :disabled="isForceDeleting"
-                    @click="submitForceDelete"
-                >
-                    <Loader2
-                        v-if="isForceDeleting"
-                        class="mr-2 size-4 animate-spin"
-                    />
+                <Button type="button" variant="outline" :disabled="isForceDeleting"
+                    @click="isForceDeleteModalOpen = false">Batal</Button>
+                <Button variant="destructive" :disabled="isForceDeleting" @click="submitForceDelete">
+                    <Loader2 v-if="isForceDeleting" class="mr-2 size-4 animate-spin" />
                     {{ isForceDeleting ? 'Menghapus...' : 'Hapus Permanen' }}
                 </Button>
             </DialogFooter>
@@ -1005,9 +800,7 @@ const submitForceDelete = () => {
     <Dialog v-model:open="isStatusModalOpen">
         <DialogContent class="sm:max-w-md">
             <DialogHeader>
-                <DialogTitle
-                    >Statistik {{ selectedClassroom?.name }}</DialogTitle
-                >
+                <DialogTitle>Statistik {{ selectedClassroom?.name }}</DialogTitle>
                 <DialogDescription>
                     Rincian data komposisi siswa berdasarkan jenis kelamin dan
                     agama.
@@ -1016,22 +809,15 @@ const submitForceDelete = () => {
 
             <div v-if="selectedClassroom" class="space-y-4 py-2">
                 <div>
-                    <span
-                        class="text-xs font-semibold tracking-wider text-neutral-500 uppercase"
-                        >Jenis Kelamin</span
-                    >
+                    <span class="text-xs font-semibold tracking-wider text-neutral-500 uppercase">Jenis Kelamin</span>
                     <div class="mt-2 grid grid-cols-2 gap-3 text-center">
-                        <div
-                            class="rounded-lg bg-blue-50 p-3 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
-                        >
+                        <div class="rounded-lg bg-blue-50 p-3 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
                             <div class="text-xs font-medium">Laki-laki</div>
                             <div class="mt-1 text-xl font-bold">
                                 {{ selectedClassroom.maleCount }}
                             </div>
                         </div>
-                        <div
-                            class="rounded-lg bg-pink-50 p-3 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300"
-                        >
+                        <div class="rounded-lg bg-pink-50 p-3 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300">
                             <div class="text-xs font-medium">Perempuan</div>
                             <div class="mt-1 text-xl font-bold">
                                 {{ selectedClassroom.femaleCount }}
@@ -1041,54 +827,40 @@ const submitForceDelete = () => {
                 </div>
 
                 <div class="border-t pt-3 dark:border-neutral-800">
-                    <span
-                        class="text-xs font-semibold tracking-wider text-neutral-500 uppercase"
-                        >Distribusi Agama</span
-                    >
+                    <span class="text-xs font-semibold tracking-wider text-neutral-500 uppercase">Distribusi
+                        Agama</span>
                     <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Islam:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.islam || 0
                             }}</strong>
                         </div>
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Kristen:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.kristen || 0
                             }}</strong>
                         </div>
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Katolik:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.katolik || 0
                             }}</strong>
                         </div>
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Hindu:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.hindu || 0
                             }}</strong>
                         </div>
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Buddha:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.buddha || 0
                             }}</strong>
                         </div>
-                        <div
-                            class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800"
-                        >
+                        <div class="flex justify-between rounded bg-neutral-100 p-2 dark:bg-neutral-800">
                             <span>Khonghucu:</span>
                             <strong class="font-bold">{{
                                 selectedClassroom.religion?.khonghucu || 0
@@ -1099,12 +871,7 @@ const submitForceDelete = () => {
             </div>
 
             <DialogFooter>
-                <Button
-                    type="button"
-                    class="w-full"
-                    @click="isStatusModalOpen = false"
-                    >Tutup Statistik</Button
-                >
+                <Button type="button" class="w-full" @click="isStatusModalOpen = false">Tutup Statistik</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { 
     ClipboardCheck, 
@@ -18,6 +17,7 @@ import {
     AlertCircle,
     RotateCcw
 } from 'lucide-vue-next';
+import { ref, computed, watch, onMounted } from 'vue';
 
 // --- WIZARD LOGIC ---
 const currentStep = ref(1);
@@ -181,9 +181,14 @@ const saveDraftToLocalStorage = () => {
 const loadDraftFromLocalStorage = () => {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
+
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (parsed.currentStep) currentStep.value = parsed.currentStep;
+
+            if (parsed.currentStep) {
+currentStep.value = parsed.currentStep;
+}
+
             if (parsed.formData) {
                 Object.assign(form, parsed.formData);
             }
@@ -217,9 +222,11 @@ const filteredClassrooms = computed(() => {
 
 watch(() => form.major_id, (newMajorId) => {
     const validClassrooms = internalClassrooms.filter(c => c.major_id === newMajorId);
+
     if (validClassrooms.length > 0) {
         // Hanya set ulang jika kelas saat ini tidak berada di jurusan baru
         const currentClassValid = validClassrooms.some(c => c.id === form.classroom_id);
+
         if (!currentClassValid) {
             form.classroom_id = validClassrooms[0].id;
         }
@@ -229,6 +236,7 @@ watch(() => form.major_id, (newMajorId) => {
 // Computed untuk mengecek apakah seluruh dokumen wajib telah terunggah
 const isDocumentsComplete = computed(() => {
     const uploadedTypes = form.documents.map(d => d.docType);
+
     return requiredDocTypes.every(type => uploadedTypes.includes(type));
 });
 
@@ -292,11 +300,14 @@ const formatScore = (event: Event, obj: any, key: string) => {
     const target = event.target as HTMLInputElement;
     let digits = target.value.replace(/\D/g, '');
 
-    if (digits.length > 4) digits = digits.slice(0, 4);
+    if (digits.length > 4) {
+digits = digits.slice(0, 4);
+}
 
     if (!digits) {
         obj[key] = '';
         target.value = '';
+
         return;
     }
 
@@ -308,7 +319,9 @@ const formatScore = (event: Event, obj: any, key: string) => {
         const decimalPart = digits.slice(-2);
         let scoreVal = `${Number(integerPart)}.${decimalPart}`;
         
-        if (Number(scoreVal) > 100) scoreVal = '100.00';
+        if (Number(scoreVal) > 100) {
+scoreVal = '100.00';
+}
 
         obj[key] = scoreVal;
         target.value = scoreVal;
@@ -324,9 +337,11 @@ const forceUppercase = (event: Event, obj: any, key: string) => {
 
 const handleSpecificFileChange = (e: Event, docType: string) => {
     const input = e.target as HTMLInputElement;
+
     if (input.files && input.files[0]) {
         const selectedFile = input.files[0];
         const existingIndex = form.documents.findIndex(d => d.docType === docType);
+
         if (existingIndex !== -1) {
             form.documents.splice(existingIndex, 1);
         }
@@ -341,6 +356,7 @@ const handleSpecificFileChange = (e: Event, docType: string) => {
 
 const getDocumentName = (docType: string) => {
     const found = form.documents.find(d => d.docType === docType);
+
     return found ? found.fileName : '';
 };
 
@@ -353,24 +369,36 @@ const getBloodTypeName = (id: number) => ['A', 'B', 'AB', 'O'][id - 1] || '-';
 const nextStep = () => { 
     if (!isStepValid.value) {
         errorMessage.value = 'Harap lengkapi seluruh bidang wajib (*) pada langkah ini sebelum melanjutkan.';
+
         return;
     }
+
     errorMessage.value = '';
-    if (currentStep.value < totalSteps) currentStep.value++; 
+
+    if (currentStep.value < totalSteps) {
+currentStep.value++;
+}
+ 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
 };
 
 const prevStep = () => { 
     errorMessage.value = '';
-    if (currentStep.value > 1) currentStep.value--; 
+
+    if (currentStep.value > 1) {
+currentStep.value--;
+}
+ 
     window.scrollTo({ top: 0, behavior: 'smooth' }); 
 };
 
 const submitRegistration = () => {
     if (!isDocumentsComplete.value) {
         errorMessage.value = 'Semua berkas dokumen wajib harus diunggah!';
+
         return;
     }
+
     form.post('/public-register', {
         onSuccess: () => {
             localStorage.removeItem(STORAGE_KEY);

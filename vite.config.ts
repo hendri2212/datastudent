@@ -14,6 +14,7 @@ export default defineConfig({
             fonts: [
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
+                    preload: false,
                 }),
             ],
         }),
@@ -31,4 +32,19 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    build: {
+        rollupOptions: {
+            onwarn(warning, defaultHandler) {
+                // Ignore pure annotation positioning warnings from node_modules (reka-ui / @vueuse/core)
+                if (
+                    warning.code === 'INVALID_ANNOTATION' || 
+                    (warning.message && warning.message.includes('/* #__PURE__ */'))
+                ) {
+                    return;
+                }
+                
+                defaultHandler(warning);
+            },
+        },
+    },
 });

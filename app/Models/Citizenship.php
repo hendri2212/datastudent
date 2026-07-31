@@ -5,13 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Gender extends Model
+class Citizenship extends Model
 {
-    protected $table = 'genders';
+    public $timestamps = false;
 
     protected $guarded = ['id'];
-
-    public $timestamps = false;
 
     /**
      * @return HasMany<Student, $this>

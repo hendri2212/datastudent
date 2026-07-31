@@ -62,7 +62,7 @@ return new class extends Migration
 
             $table->index('student_id');
         });
-    }
+    } 
 
     public function down(): void
     {
