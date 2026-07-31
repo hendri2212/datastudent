@@ -157,7 +157,7 @@ class StudentDocumentController extends Controller
         }
 
         // Melakukan Soft Delete pada record database
-        $document->delete();
+        $document->forceDelete();
 
         return back()->with('success', 'Dokumen berhasil dihapus.');
     }

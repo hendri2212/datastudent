@@ -83,7 +83,6 @@ export interface StudentHealth {
     medical_history?: string; // <-- Ditambahkan sesuai skema database
     medicalHistory?: string;
     disabilities?: string;
-    diseases?: string;
     medications?: string;
     hospital?: string;
     doctor?: string;
@@ -120,7 +119,6 @@ export interface StudentDocument {
     document_type_id?: number;
     original_name?: string;
     stored_name?: string;
-    file_name?: string;
     file_path?: string;
     url?: string;
     mime_type?: string;

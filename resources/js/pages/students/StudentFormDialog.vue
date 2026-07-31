@@ -2,6 +2,7 @@
 import { useForm, router } from '@inertiajs/vue3';
 import { 
     Loader2, 
+    Lock,
     User, 
     Users, 
     History, 
@@ -284,6 +285,10 @@ watch(
 
 // Dynamic Helpers
 const addEducation = () => {
+    if (isLocked.value) {
+return
+}
+
     form.education_histories.push({
         education_level_id: null,
         school_name: '',
@@ -298,6 +303,10 @@ const addEducation = () => {
 };
 
 const removeEducation = (index: number) => {
+    if (isLocked.value) {
+return
+}
+
     form.education_histories.splice(index, 1);
 };
 
@@ -393,6 +402,14 @@ return;
     resetDocumentFields();
     emit('close');
 };
+
+const isLocked = computed(() => {
+  if (!props.student) {
+return false
+}
+
+  return Boolean(props.student.is_locked || props.student.verified_at)
+})
 
 const handleSubmit = () => {
     // PREVENT SUBMIT JIKA DOKUMEN SUDAH ADA
@@ -535,123 +552,169 @@ const handleSubmit = () => {
                 </div>
             </DialogHeader>
 
+            <div
+                v-if="isLocked"
+                class="mx-auto max-w-xl w-full p-2.5 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg text-xs flex items-center gap-2 dark:bg-amber-950/40 dark:border-amber-800 dark:text-amber-300 shrink-0"
+            >
+                <Lock class="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                    <strong>Data Statis Dikunci:</strong> Informasi pokok siswa telah diverifikasi. Anda hanya dapat memperbarui data dinamis.
+                </span>
+            </div>
+
             <form @submit.prevent="handleSubmit" class="flex-1 overflow-y-auto p-6 space-y-6">
-                <!-- Tab Biodata Utama -->
+    <!-- Tab Biodata Utama -->
                 <div v-show="activeTab === 'biodata'" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <!-- STATIS: Nama Lengkap -->
                         <div class="space-y-1.5">
                             <Label for="full_name">Nama Lengkap <span class="text-red-500">*</span></Label>
-                            <Input id="full_name" v-model="form.full_name" placeholder="Nama Lengkap Siswa" required />
+                            <Input id="full_name" v-model="form.full_name" :disabled="isLocked" placeholder="Nama Lengkap Siswa" required />
                             <span v-if="form.errors.full_name" class="text-xs text-red-500">{{ form.errors.full_name }}</span>
                         </div>
+
+                        <!-- DINAMIS: Nama Panggilan -->
                         <div class="space-y-1.5">
                             <Label for="nickname">Nama Panggilan</Label>
                             <Input id="nickname" v-model="form.nickname" placeholder="Panggilan" />
                         </div>
+
+                        <!-- STATIS: NISN -->
                         <div class="space-y-1.5">
                             <Label for="nisn">NISN <span class="text-red-500">*</span></Label>
-                            <Input id="nisn" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nisn" placeholder="Nomor Induk Siswa Nasional" required />
+                            <Input id="nisn" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nisn" :disabled="isLocked" placeholder="Nomor Induk Siswa Nasional" required />
                             <span v-if="form.errors.nisn" class="text-xs text-red-500">{{ form.errors.nisn }}</span>
                         </div>
+
+                        <!-- STATIS: NIS -->
                         <div class="space-y-1.5">
                             <Label for="nis">NIS</Label>
-                            <Input id="nis" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nis" placeholder="Nomor Induk Sekolah" />
+                            <Input id="nis" type="text" inputmode="numeric" pattern="[0-9]*" v-model="form.nis" :disabled="isLocked" placeholder="Nomor Induk Sekolah" />
                         </div>
+
+                        <!-- STATIS: Jenis Kelamin -->
                         <div class="space-y-1.5">
                             <Label for="gender_id">
                                 Jenis Kelamin <span class="text-red-500">*</span>
                             </Label>
-                            <select id="gender_id" v-model="form.gender_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                            <select id="gender_id" v-model="form.gender_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50" required>
                                 <option :value="null">Pilih Jenis Kelamin</option>
                                 <option v-for="g in props.genders" :key="g.id" :value="g.id">{{ g.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Kewarganegaraan -->
                         <div class="space-y-1.5">
                             <Label for="citizenship_id">
                                 Kewarganegaraan <span v-if="form.citizenship_id === null" class="text-red-500">*</span>
                             </Label>
-                            <select id="citizenship_id" v-model="form.citizenship_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                            <select id="citizenship_id" v-model="form.citizenship_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50">
                                 <option :value="null">Pilih Kewarganegaraan</option>
                                 <option v-for="c in props.citizenships" :key="c.id" :value="c.id">{{ c.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Agama -->
                         <div class="space-y-1.5">
                             <Label for="religion_id">
                                 Agama <span v-if="form.religion_id === null" class="text-red-500">*</span>
                             </Label>
-                            <select id="religion_id" v-model="form.religion_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                            <select id="religion_id" v-model="form.religion_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50">
                                 <option :value="null">Pilih Agama</option>
                                 <option v-for="r in props.religions" :key="r.id" :value="r.id">{{ r.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Tempat Lahir -->
                         <div class="space-y-1.5">
                             <Label for="birth_place">Tempat Lahir</Label>
-                            <Input id="birth_place" v-model="form.birth_place" placeholder="Kota Lahir" />
+                            <Input id="birth_place" v-model="form.birth_place" :disabled="isLocked" placeholder="Kota Lahir" />
                         </div>
+
+                        <!-- STATIS: Tanggal Lahir -->
                         <div class="space-y-1.5">
                             <Label for="birth_date">
                                 Tanggal Lahir <span v-if="!form.birth_date" class="text-red-500">*</span>
                             </Label>
-                            <Input id="birth_date" type="date" v-model="form.birth_date" />
+                            <Input id="birth_date" type="date" v-model="form.birth_date" :disabled="isLocked" />
                         </div>
+
+                        <!-- STATIS: Kelas -->
                         <div class="space-y-1.5">
                             <Label for="classroom_id">
                                 Kelas <span v-if="form.classroom_id === null" class="text-red-500">*</span>
                             </Label>
-                            <select id="classroom_id" v-model="form.classroom_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                            <select id="classroom_id" v-model="form.classroom_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50">
                                 <option :value="null">Pilih Kelas</option>
                                 <option v-for="c in props.classrooms" :key="c.id" :value="c.id">{{ c.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Jurusan -->
                         <div class="space-y-1.5">
                             <Label for="major_id">
                                 Jurusan <span v-if="form.major_id === null" class="text-red-500">*</span>
                             </Label>
-                            <select id="major_id" v-model="form.major_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                            <select id="major_id" v-model="form.major_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50">
                                 <option :value="null">Pilih Jurusan</option>
                                 <option v-for="m in props.majors" :key="m.id" :value="m.id">{{ m.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Tahun Ajaran -->
                         <div class="space-y-1.5">
                             <Label for="academic_year_id">
                                 Tahun Ajaran <span class="text-red-500">*</span>
                             </Label>
-                            <select id="academic_year_id" v-model="form.academic_year_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                            <select id="academic_year_id" v-model="form.academic_year_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50" required>
                                 <option :value="null">Pilih Tahun Ajaran</option>
                                 <option v-for="ay in props.academicYears" :key="ay.id" :value="ay.id">{{ ay.name }}</option>
                             </select>
                         </div>
+
+                        <!-- STATIS: Status Siswa -->
                         <div class="space-y-1.5">
                             <Label for="student_status_id">
                                 Status Siswa <span v-if="form.student_status_id === null" class="text-red-500">*</span>
                             </Label>
-                            <select id="student_status_id" v-model="form.student_status_id" class="w-full border rounded-md p-2 text-sm bg-background border-input">
+                            <select id="student_status_id" v-model="form.student_status_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50">
                                 <option :value="null">Pilih Status</option>
                                 <option v-for="st in props.studentStatuses" :key="st.id" :value="st.id">{{ st.name }}</option>
                             </select>
                         </div>
+
+                        <!-- DINAMIS: No. Telepon / WA -->
                         <div class="space-y-1.5">
                             <Label for="phone">No. Telepon / WA</Label>
                             <Input id="phone" type="text" inputmode="tel" pattern="[0-9+]*" v-model="form.phone" placeholder="08xxxxxxxxxx" />
                         </div>
+
+                        <!-- DINAMIS: Email -->
                         <div class="space-y-1.5">
                             <Label for="email">Email</Label>
                             <Input id="email" type="email" v-model="form.email" placeholder="siswa@sekolah.sch.id" />
                         </div>
+
+                        <!-- DINAMIS: Alamat -->
                         <div class="space-y-1.5">
                             <Label for="address">Alamat</Label>
                             <Input id="address" v-model="form.address" placeholder="Alamat lengkap siswa" />
                         </div>
+
+                        <!-- STATIS: Sekolah -->
                         <div class="space-y-1.5">
                             <Label for="school_id">
                                 Sekolah <span class="text-red-500">*</span>
                             </Label>
-                            <select id="school_id" v-model="form.school_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                            <select id="school_id" v-model="form.school_id" :disabled="isLocked" class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50" required>
                                 <option :value="null">Pilih Sekolah</option>
                                 <option v-for="s in props.schools" :key="s.id" :value="s.id">{{ s.name }}</option>
                             </select>
                             <span v-if="form.errors.school_id" class="text-xs text-red-500">{{ form.errors.school_id }}</span>
                         </div>
+
+                        <!-- DINAMIS: Kode Pos -->
                         <div class="space-y-1.5">
                             <Label for="postal_code">Kode Pos</Label>
                             <Input id="postal_code" v-model="form.postal_code" placeholder="Kode Pos" />
@@ -661,17 +724,29 @@ const handleSubmit = () => {
 
                 <!-- Tab Keluarga -->
                 <div v-show="activeTab === 'family'" class="space-y-6">
+                    <!-- Data Ayah -->
                     <div class="space-y-3">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Ayah</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            
+                            <!-- STATIS: Nama Ayah -->
                             <div class="space-y-1">
                                 <Label class="text-xs">Nama Ayah</Label>
-                                <Input v-model="form.family.father_name" placeholder="Nama Ayah Kandung" class="text-sm" />
+                                <Input 
+                                    v-model="form.family.father_name" 
+                                    :disabled="isLocked" 
+                                    placeholder="Nama Ayah Kandung" 
+                                    class="text-sm" 
+                                />
                             </div>
+
+                            <!-- DINAMIS: No. Telepon Ayah -->
                             <div class="space-y-1">
                                 <Label class="text-xs">No. Telepon Ayah</Label>
                                 <Input v-model="form.family.father_phone" placeholder="08xxx" class="text-sm" />
                             </div>
+
+                            <!-- DINAMIS: Pekerjaan Ayah -->
                             <div class="space-y-1">
                                 <Label class="text-xs">
                                     Pekerjaan Ayah <span v-if="form.family.father_occupation_id === null" class="text-red-500">*</span>
@@ -681,6 +756,8 @@ const handleSubmit = () => {
                                     <option v-for="o in props.occupations" :key="o.id" :value="o.id">{{ o.name }}</option>
                                 </select>
                             </div>
+
+                            <!-- DINAMIS: Penghasilan Ayah -->
                             <div class="space-y-1">
                                 <Label class="text-xs">
                                     Penghasilan Ayah <span v-if="form.family.father_income_category_id === null" class="text-red-500">*</span>
@@ -693,17 +770,29 @@ const handleSubmit = () => {
                         </div>
                     </div>
 
+                    <!-- Data Ibu -->
                     <div class="space-y-3">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Ibu</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            
+                            <!-- STATIS: Nama Ibu -->
                             <div class="space-y-1">
                                 <Label class="text-xs">Nama Ibu</Label>
-                                <Input v-model="form.family.mother_name" placeholder="Nama Ibu Kandung" class="text-sm" />
+                                <Input 
+                                    v-model="form.family.mother_name" 
+                                    :disabled="isLocked" 
+                                    placeholder="Nama Ibu Kandung" 
+                                    class="text-sm" 
+                                />
                             </div>
+
+                            <!-- DINAMIS: No. Telepon Ibu -->
                             <div class="space-y-1">
                                 <Label class="text-xs">No. Telepon Ibu</Label>
                                 <Input v-model="form.family.mother_phone" placeholder="08xxx" class="text-sm" />
                             </div>
+
+                            <!-- DINAMIS: Pekerjaan Ibu -->
                             <div class="space-y-1">
                                 <Label class="text-xs">
                                     Pekerjaan Ibu <span v-if="form.family.mother_occupation_id === null" class="text-red-500">*</span>
@@ -713,6 +802,8 @@ const handleSubmit = () => {
                                     <option v-for="o in props.occupations" :key="o.id" :value="o.id">{{ o.name }}</option>
                                 </select>
                             </div>
+
+                            <!-- DINAMIS: Penghasilan Ibu -->
                             <div class="space-y-1">
                                 <Label class="text-xs">
                                     Penghasilan Ibu <span v-if="form.family.mother_income_category_id === null" class="text-red-500">*</span>
@@ -725,6 +816,7 @@ const handleSubmit = () => {
                         </div>
                     </div>
 
+                    <!-- Data Wali & Kontak Darurat (Seluruhnya Dinamis) -->
                     <div class="space-y-3">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500 border-b pb-1">Data Wali & Kontak Darurat</h4>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -752,6 +844,15 @@ const handleSubmit = () => {
                                     <option :value="null">Pilih Hubungan</option>
                                     <option v-for="rel in props.relationshipTypes" :key="rel.id" :value="rel.id">{{ rel.name }}</option>
                                 </select>
+                            </div>
+                            <!-- Tambahkan di dalam tab keluarga (ActiveTab === 'family') -->
+                            <div class="space-y-1 md:col-span-2">
+                                <Label class="text-xs">Catatan Keluarga</Label>
+                                <Input 
+                                    v-model="form.family.notes" 
+                                    placeholder="Catatan tambahan mengenai keluarga" 
+                                    class="text-sm" 
+                                />
                             </div>
                         </div>
                     </div>
@@ -826,7 +927,16 @@ const handleSubmit = () => {
                 <div v-show="activeTab === 'education'" class="space-y-4">
                     <div class="flex items-center justify-between">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Riwayat Sekolah Sebelumnya</h4>
-                        <Button type="button" size="sm" variant="outline" @click="addEducation" class="flex items-center gap-1 text-xs">
+                        
+                        <!-- Sembunyikan/Disable tombol tambah jika data dikunci -->
+                        <Button 
+                            v-if="!isLocked" 
+                            type="button" 
+                            size="sm" 
+                            variant="outline" 
+                            @click="addEducation" 
+                            class="flex items-center gap-1 text-xs"
+                        >
                             <Plus class="h-3.5 w-3.5" />
                             <span>Tambah Sekolah</span>
                         </Button>
@@ -835,44 +945,92 @@ const handleSubmit = () => {
                     <div v-for="(edu, index) in form.education_histories" :key="index" class="p-4 border rounded-lg space-y-3 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50">
                         <div class="flex justify-between items-center border-b pb-2 dark:border-neutral-800">
                             <span class="text-xs font-semibold">Sekolah #{{ index + 1 }}</span>
-                            <Button type="button" size="icon" variant="ghost" @click="removeEducation(index)">
+                            
+                            <!-- Sembunyikan tombol hapus jika data dikunci -->
+                            <Button 
+                                v-if="!isLocked" 
+                                type="button" 
+                                size="icon" 
+                                variant="ghost" 
+                                @click="removeEducation(index)"
+                            >
                                 <Trash2 class="h-4 w-4 text-red-500" />
                             </Button>
                         </div>
+                        
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div class="space-y-1">
                                 <Label class="text-xs">
                                     Jenjang Pendidikan <span v-if="edu.education_level_id === null" class="text-red-500">*</span>
                                 </Label>
-                                <select v-model="edu.education_level_id" class="w-full border rounded-md p-2 text-sm bg-background border-input" required>
+                                <select 
+                                    v-model="edu.education_level_id" 
+                                    :disabled="isLocked" 
+                                    class="w-full border rounded-md p-2 text-sm bg-background border-input disabled:cursor-not-allowed disabled:opacity-50" 
+                                    required
+                                >
                                     <option :value="null">Pilih Jenjang</option>
                                     <option v-for="el in props.educationLevels" :key="el.id" :value="el.id">{{ el.name }}</option>
                                 </select>
                             </div>
+                            
                             <div class="space-y-1">
                                 <Label class="text-xs">Nama Sekolah <span class="text-red-500">*</span></Label>
-                                <Input v-model="edu.school_name" placeholder="SMPN 1 Jakarta" class="text-sm" required />
+                                <Input 
+                                    v-model="edu.school_name" 
+                                    :disabled="isLocked" 
+                                    placeholder="SMPN 1 Jakarta" 
+                                    class="text-sm" 
+                                    required 
+                                />
                             </div>
+                            
                             <div class="space-y-1">
                                 <Label class="text-xs">NPSN</Label>
-                                <Input v-model="edu.npsn" placeholder="Nomor NPSN" class="text-sm" />
+                                <Input 
+                                    v-model="edu.npsn" 
+                                    :disabled="isLocked" 
+                                    placeholder="Nomor NPSN" 
+                                    class="text-sm" 
+                                />
                             </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div class="space-y-1">
                                 <Label class="text-xs">Tahun Masuk</Label>
-                                <Input type="number" min="1900" max="2099" inputmode="numeric" v-model.number="edu.entry_year" placeholder="2020" class="text-sm" />
+                                <Input 
+                                    type="number" 
+                                    min="1900" 
+                                    max="2099" 
+                                    inputmode="numeric" 
+                                    v-model.number="edu.entry_year" 
+                                    :disabled="isLocked" 
+                                    placeholder="2020" 
+                                    class="text-sm" 
+                                />
                             </div>
+                            
                             <div class="space-y-1">
                                 <Label class="text-xs">Tahun Lulus</Label>
-                                <Input type="number" min="1900" max="2099" inputmode="numeric" v-model.number="edu.graduation_year" placeholder="2023" class="text-sm" />
+                                <Input 
+                                    type="number" 
+                                    min="1900" 
+                                    max="2099" 
+                                    inputmode="numeric" 
+                                    v-model.number="edu.graduation_year" 
+                                    :disabled="isLocked" 
+                                    placeholder="2023" 
+                                    class="text-sm" 
+                                />
                             </div>
+                            
                             <div class="space-y-1">
                                 <Label class="text-xs">Nilai Akhir / IPK</Label>
                                 <Input
                                     type="text"
                                     v-model="edu.final_score"
+                                    :disabled="isLocked"
                                     placeholder="85.50"
                                     @blur="normalizeScoreInput(edu)"
                                     class="text-sm"
@@ -883,10 +1041,22 @@ const handleSubmit = () => {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
                             <div class="space-y-1">
                                 <Label class="text-xs">Alamat Sekolah</Label>
-                                <Input v-model="edu.address" placeholder="Jl. Raya Utama No. 12" class="text-sm" />
+                                <Input 
+                                    v-model="edu.address" 
+                                    :disabled="isLocked" 
+                                    placeholder="Jl. Raya Utama No. 12" 
+                                    class="text-sm" 
+                                />
                             </div>
+                            
                             <div class="flex items-center gap-2 pt-4">
-                                <input type="checkbox" :id="'graduated_' + index" v-model="edu.is_graduated" class="rounded border-input" />
+                                <input 
+                                    type="checkbox" 
+                                    :id="'graduated_' + index" 
+                                    v-model="edu.is_graduated" 
+                                    :disabled="isLocked" 
+                                    class="rounded border-input disabled:cursor-not-allowed disabled:opacity-50" 
+                                />
                                 <Label :for="'graduated_' + index" class="text-xs font-normal cursor-pointer">Lulus dari Sekolah Ini</Label>
                             </div>
                         </div>
@@ -1049,7 +1219,7 @@ const handleSubmit = () => {
                     <div v-if="props.student?.documents && props.student.documents.length > 0" class="space-y-2">
                         <h4 class="text-xs font-bold uppercase tracking-wider text-neutral-500">Dokumen Tersimpan</h4>
                         <div v-for="doc in props.student.documents" :key="doc.id" class="flex items-center justify-between border p-3 rounded-lg text-xs dark:border-neutral-800">
-                            <span class="font-medium">{{ doc.original_name || doc.stored_name || doc.file_name || 'Dokumen Siswa' }}</span>
+                            <span class="font-medium">{{ doc.original_name || doc.stored_name || doc.notes || 'Dokumen Siswa' }}</span>
                             <div class="flex items-center gap-3">
                                 <a :href="props.student ? `/students/${props.student.id}/documents/${doc.id}/preview` : '#'" target="_blank" class="text-blue-600 underline">Lihat / Unduh</a>
                                 <Button type="button" variant="ghost" size="icon" class="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50" @click="deleteDocument(doc.id)">
