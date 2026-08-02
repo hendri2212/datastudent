@@ -86,9 +86,12 @@ class StudentController extends Controller
             ->when($filters['religion_id'] ?? null, fn ($query, $id) => $query->where('religion_id', $id))
             ->when($filters['blood_type_id'] ?? null, fn ($query, $id) => $query->whereHas('health', fn ($health) => $health->where('blood_type_id', $id)));
 
+        $statistics = $this->statistics(clone $query);
+        $students = (clone $query)->latest('id')->paginate(10)->withQueryString();
+
         return Inertia::render('students/Index', [
-            'students' => $query->latest('id')->paginate(10)->withQueryString(),
-            'statistics' => $this->statistics(clone $query),
+            'students' => $students,
+            'statistics' => $statistics,
             ...$this->masterData(),
             'filters' => [
                 'search' => '',
@@ -202,8 +205,9 @@ class StudentController extends Controller
      */
     private function statistics(Builder $query): array
     {
-        $studentIds = (clone $query)->select('students.id');
+        $studentIds = (clone $query)->reorder()->select('students.id');
         $genderCounts = (clone $query)
+            ->reorder()
             ->selectRaw('gender_id, COUNT(*) as aggregate')
             ->groupBy('gender_id')
             ->pluck('aggregate', 'gender_id');

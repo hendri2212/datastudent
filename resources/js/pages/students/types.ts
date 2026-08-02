@@ -127,6 +127,7 @@ export interface StudentDocument {
     document_type_id?: number;
     original_name?: string;
     stored_name?: string;
+    file_name?: string;
     file_path?: string;
     url?: string;
     mime_type?: string;
