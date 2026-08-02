@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\AcademicYear;
 use App\Models\BloodType;
-use App\Models\Classroom;
 use App\Models\Citizenship;
+use App\Models\Classroom;
 use App\Models\DocumentType;
 use App\Models\EducationLevel;
 use App\Models\Gender;
@@ -217,9 +217,18 @@ class StudentSeeder extends Seeder
                     'birth_date' => $studentData['birth_date'],
                     'phone' => $studentData['phone'],
                     'email' => $studentData['email'],
-                    'address' => 'Jl. Merdeka No. ' . substr($studentData['nis'], -2),
+                    'address' => 'Jl. Merdeka No. '.substr($studentData['nis'], -2),
                     'postal_code' => '12345',
                     'notes' => $studentData['notes'],
+                ]
+            );
+
+            $student->enrollments()->updateOrCreate(
+                ['academic_year_id' => $academicYearId],
+                [
+                    'classroom_id' => $classrooms[$studentData['classroom']],
+                    'student_status_id' => $studentStatusId,
+                    'enrolled_at' => now()->toDateString(),
                 ]
             );
 
@@ -335,7 +344,7 @@ class StudentSeeder extends Seeder
 
             foreach ($studentData['documents'] as $index => $document) {
                 $documentTypeId = $documentTypes[$document['type']] ?? null;
-                $storedName = Str::slug($student->full_name . '-' . $document['type'] . '-' . ($index + 1));
+                $storedName = Str::slug($student->full_name.'-'.$document['type'].'-'.($index + 1));
 
                 StudentDocument::updateOrCreate(
                     [
@@ -344,8 +353,8 @@ class StudentSeeder extends Seeder
                     ],
                     [
                         'document_type_id' => $documentTypeId,
-                        'stored_name' => $storedName . '.' . $document['extension'],
-                        'file_path' => '/storage/documents/' . $storedName . '.' . $document['extension'],
+                        'stored_name' => $storedName.'.'.$document['extension'],
+                        'file_path' => '/storage/documents/'.$storedName.'.'.$document['extension'],
                         'disk' => 'public',
                         'mime_type' => $document['mime_type'],
                         'file_size' => $document['file_size'],
@@ -355,7 +364,6 @@ class StudentSeeder extends Seeder
                 );
             }
         }
-        
-    }
 
+    }
 }

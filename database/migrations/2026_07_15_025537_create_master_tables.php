@@ -47,14 +47,14 @@ return new class extends Migration
 
             $table->foreignId('school_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
-            $table->string('code',20);
+            $table->string('code', 20);
             $table->string('name');
             $table->enum('status', ['Aktif', 'Nonaktif'])->default('Aktif');
             $table->timestamps();
 
-            $table->unique(['school_id','code']);
+            $table->unique(['school_id', 'code']);
         });
 
         /*
@@ -67,14 +67,15 @@ return new class extends Migration
 
             $table->foreignId('major_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->string('name');
-            $table->enum('level',['X','XI','XII']);
+            $table->enum('level', ['X', 'XI', 'XII']);
             $table->integer('rombel');
             $table->enum('status', ['Aktif', 'Nonaktif'])->default('Aktif');
             $table->timestamps();
             $table->softDeletes();
+
         });
 
         /*
@@ -94,7 +95,7 @@ return new class extends Migration
         */
         Schema::create('genders', function (Blueprint $table) {
             $table->id();
-            $table->string('code',2)->unique();
+            $table->string('code', 2)->unique();
             $table->string('name');
         });
 
@@ -105,7 +106,7 @@ return new class extends Migration
         */
         Schema::create('blood_types', function (Blueprint $table) {
             $table->id();
-            $table->string('name',3)->unique();
+            $table->string('name', 3)->unique();
         });
 
         /*
@@ -125,7 +126,7 @@ return new class extends Migration
         */
         Schema::create('citizenships', function (Blueprint $table) {
             $table->id();
-            $table->string('code',10)->unique();
+            $table->string('code', 10)->unique();
             $table->string('name');
         });
 

@@ -51,7 +51,7 @@ return new class extends Migration
 
             $table->year('graduation_year')->nullable();
 
-            $table->decimal('final_score',5,2)->nullable();
+            $table->decimal('final_score', 5, 2)->nullable();
 
             $table->boolean('is_graduated')
                 ->default(true);
@@ -68,13 +68,11 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->index('student_id');
-
             $table->index('education_level_id');
 
             $table->unique([
                 'student_id',
-                'education_level_id'
+                'education_level_id',
             ]);
         });
     }

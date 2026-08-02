@@ -49,13 +49,13 @@ return new class extends Migration
 
             $table->string('disk')->default('private');
 
-            $table->string('mime_type',100);
+            $table->string('mime_type', 100);
 
             $table->unsignedBigInteger('file_size');
 
-            $table->string('extension',20);
+            $table->string('extension', 20);
 
-            $table->string('checksum',64)->nullable();
+            $table->string('checksum', 64)->nullable();
 
             /*
             |--------------------------------------------------------------------------
@@ -103,13 +103,12 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->index('student_id');
             $table->index('document_type_id');
-            $table->index('is_verified');
+            $table->index(['is_verified', 'created_at']);
 
             $table->unique([
                 'student_id',
-                'document_type_id'
+                'document_type_id',
             ]);
         });
     }

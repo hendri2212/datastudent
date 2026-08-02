@@ -15,9 +15,9 @@ class Student extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'is_locked'   => 'boolean',
+        'is_locked' => 'boolean',
         'verified_at' => 'datetime',
-        'birth_date'  => 'date',
+        'birth_date' => 'date',
     ];
 
     protected $appends = ['student_status'];
@@ -145,6 +145,16 @@ class Student extends Model
     public function family(): HasOne
     {
         return $this->hasOne(StudentFamily::class);
+    }
+
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function currentEnrollment(): HasOne
+    {
+        return $this->hasOne(StudentEnrollment::class)->latestOfMany();
     }
 
     /**

@@ -63,15 +63,11 @@ return new class extends Migration
 
             $table->unique([
                 'student_id',
-                'social_platform_id'
+                'social_platform_id',
             ]);
 
             $table->index([
-                'student_id'
-            ]);
-
-            $table->index([
-                'social_platform_id'
+                'social_platform_id',
             ]);
         });
     }

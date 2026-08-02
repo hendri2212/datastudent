@@ -35,7 +35,7 @@ class DatabaseSeeder extends Seeder
 
         // 2. Buat atau perbarui user admin (Mencegah error duplicate entry)
         User::firstOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'admin@gmail.com'],
             [
                 'name' => 'Super Admin',
                 'password' => bcrypt('password'),

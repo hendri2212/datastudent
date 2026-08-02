@@ -32,7 +32,7 @@ return new class extends Migration
             */
             $table->foreignId('school_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('major_id')
                 ->nullable()
@@ -46,19 +46,19 @@ return new class extends Migration
 
             $table->foreignId('academic_year_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('student_status_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('religion_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('gender_id')
                 ->constrained()
-                ->cascadeOnDelete();
+                ->restrictOnDelete();
 
             $table->foreignId('blood_type_id')
                 ->nullable()
@@ -76,9 +76,9 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->string('nis',30)->unique();
+            $table->string('nis', 30)->unique();
 
-            $table->string('nisn',10)->unique();
+            $table->string('nisn', 10)->unique();
 
             $table->string('full_name');
 
@@ -94,13 +94,13 @@ return new class extends Migration
             |--------------------------------------------------------------------------
             */
 
-            $table->string('phone',25)->nullable();
+            $table->string('phone', 25)->nullable();
 
             $table->string('email')->nullable();
 
             $table->text('address')->nullable();
 
-            $table->string('postal_code',10)->nullable();
+            $table->string('postal_code', 10)->nullable();
 
             /*
             |--------------------------------------------------------------------------
@@ -154,13 +154,9 @@ return new class extends Migration
             $table->index([
                 'school_id',
                 'major_id',
-                'classroom_id'
+                'classroom_id',
             ]);
 
-            $table->index([
-                'nis',
-                'nisn'
-            ]);
         });
     }
 
