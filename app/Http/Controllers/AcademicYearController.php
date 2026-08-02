@@ -15,7 +15,7 @@ class AcademicYearController extends Controller
         $search = $request->input('search');
 
         $academicYears = AcademicYear::query()
-            ->withCount('students')
+            ->withCount(['enrollments as students_count'])
             ->when($search, function ($query, $search) {
                 $query->where('name', 'like', "%{$search}%");
             })
@@ -39,7 +39,7 @@ class AcademicYearController extends Controller
             'is_active' => ['boolean'],
         ]);
 
-        if (!empty($validated['is_active'])) {
+        if (! empty($validated['is_active'])) {
             AcademicYear::query()->update(['is_active' => false]);
         }
 
@@ -51,13 +51,13 @@ class AcademicYearController extends Controller
     public function update(Request $request, AcademicYear $academicYear): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:20', 'unique:academic_years,name,' . $academicYear->id],
+            'name' => ['required', 'string', 'max:20', 'unique:academic_years,name,'.$academicYear->id],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after:start_date'],
             'is_active' => ['boolean'],
         ]);
 
-        if (!empty($validated['is_active'])) {
+        if (! empty($validated['is_active'])) {
             AcademicYear::where('id', '!=', $academicYear->id)->update(['is_active' => false]);
         }
 
@@ -68,7 +68,7 @@ class AcademicYearController extends Controller
 
     public function destroy(AcademicYear $academicYear): RedirectResponse
     {
-        if ($academicYear->students()->exists()) {
+        if ($academicYear->enrollments()->exists()) {
             return back()->with('error', 'Tidak dapat menghapus tahun akademik karena masih digunakan oleh data siswa.');
         }
 

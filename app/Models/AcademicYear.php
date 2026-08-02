@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AcademicYear extends Model
@@ -15,11 +16,17 @@ class AcademicYear extends Model
         'end_date' => 'date',
     ];
 
-    /**
-     * @return HasMany<Student, $this>
-     */
-    public function students(): HasMany
+    /** @return HasMany<StudentEnrollment, $this> */
+    public function enrollments(): HasMany
     {
-        return $this->hasMany(Student::class);
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    /** @return BelongsToMany<Student, $this> */
+    public function students(): BelongsToMany
+    {
+        return $this->belongsToMany(Student::class, 'student_enrollments')
+            ->withPivot(['classroom_id', 'student_status_id', 'enrolled_at', 'ended_at'])
+            ->withTimestamps();
     }
 }

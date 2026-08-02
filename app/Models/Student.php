@@ -14,67 +14,79 @@ class Student extends Model
 
     protected $guarded = ['id'];
 
+    protected $appends = [
+        'school_id',
+        'major_id',
+        'classroom_id',
+        'academic_year_id',
+        'student_status_id',
+        'blood_type_id',
+        'school',
+        'major',
+        'classroom',
+        'academic_year',
+        'student_status',
+    ];
+
     protected $casts = [
         'is_locked' => 'boolean',
         'verified_at' => 'datetime',
         'birth_date' => 'date',
     ];
 
-    protected $appends = ['student_status'];
+    public function getSchoolIdAttribute(): ?int
+    {
+        return $this->currentEnrollment?->classroom?->major?->school_id;
+    }
+
+    public function getMajorIdAttribute(): ?int
+    {
+        return $this->currentEnrollment?->classroom?->major_id;
+    }
+
+    public function getClassroomIdAttribute(): ?int
+    {
+        return $this->currentEnrollment?->classroom_id;
+    }
+
+    public function getAcademicYearIdAttribute(): ?int
+    {
+        return $this->currentEnrollment?->academic_year_id;
+    }
+
+    public function getStudentStatusIdAttribute(): ?int
+    {
+        return $this->currentEnrollment?->student_status_id;
+    }
+
+    public function getBloodTypeIdAttribute(): ?int
+    {
+        return $this->health?->blood_type_id;
+    }
+
+    public function getSchoolAttribute(): ?School
+    {
+        return $this->currentEnrollment?->classroom?->major?->school;
+    }
+
+    public function getMajorAttribute(): ?Major
+    {
+        return $this->currentEnrollment?->classroom?->major;
+    }
+
+    public function getClassroomAttribute(): ?Classroom
+    {
+        return $this->currentEnrollment?->classroom;
+    }
+
+    public function getAcademicYearAttribute(): ?AcademicYear
+    {
+        return $this->currentEnrollment?->academicYear;
+    }
 
     public function getStudentStatusAttribute(): ?StudentStatus
     {
-        return $this->status;
-    }
-
-    /**
-     * Relasi ke Sekolah
-     *
-     * @return BelongsTo<School, $this>
-     */
-    public function school(): BelongsTo
-    {
-        return $this->belongsTo(School::class);
-    }
-
-    /**
-     * Relasi ke Jurusan
-     *
-     * @return BelongsTo<Major, $this>
-     */
-    public function major(): BelongsTo
-    {
-        return $this->belongsTo(Major::class);
-    }
-
-    /**
-     * Relasi ke Kelas
-     *
-     * @return BelongsTo<Classroom, $this>
-     */
-    public function classroom(): BelongsTo
-    {
-        return $this->belongsTo(Classroom::class);
-    }
-
-    /**
-     * Relasi ke Tahun Ajaran
-     *
-     * @return BelongsTo<AcademicYear, $this>
-     */
-    public function academicYear(): BelongsTo
-    {
-        return $this->belongsTo(AcademicYear::class);
-    }
-
-    /**
-     * Relasi ke Status Siswa (Aktif, Lulus, Dikeluarkan, dll)
-     *
-     * @return BelongsTo<StudentStatus, $this>
-     */
-    public function status(): BelongsTo
-    {
-        return $this->belongsTo(StudentStatus::class, 'student_status_id');
+        return $this->currentEnrollment?->status;
     }
 
     /**
@@ -108,16 +120,6 @@ class Student extends Model
     }
 
     /**
-     * Relasi ke Golongan Darah
-     *
-     * @return BelongsTo<BloodType, $this>
-     */
-    public function bloodType(): BelongsTo
-    {
-        return $this->belongsTo(BloodType::class);
-    }
-
-    /**
      * Relasi ke Akun User Login Siswa
      *
      * @return BelongsTo<User, $this>
@@ -147,14 +149,18 @@ class Student extends Model
         return $this->hasOne(StudentFamily::class);
     }
 
+    /** @return HasMany<StudentEnrollment, $this> */
     public function enrollments(): HasMany
     {
         return $this->hasMany(StudentEnrollment::class);
     }
 
+    /** @return HasOne<StudentEnrollment, $this> */
     public function currentEnrollment(): HasOne
     {
-        return $this->hasOne(StudentEnrollment::class)->latestOfMany();
+        return $this->hasOne(StudentEnrollment::class)
+            ->whereNull('ended_at')
+            ->latestOfMany();
     }
 
     /**

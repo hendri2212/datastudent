@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class BloodType extends Model
 {
@@ -13,12 +14,17 @@ class BloodType extends Model
         'name',
     ];
 
-    /**
-     * @return HasMany<Student, $this>
-     */
-    public function students(): HasMany
+    /** @return HasManyThrough<Student, StudentHealth, $this> */
+    public function students(): HasManyThrough
     {
-        return $this->hasMany(Student::class);
+        return $this->hasManyThrough(
+            Student::class,
+            StudentHealth::class,
+            'blood_type_id',
+            'id',
+            'id',
+            'student_id',
+        );
     }
 
     /**

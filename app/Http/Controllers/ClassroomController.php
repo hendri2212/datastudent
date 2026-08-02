@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\Classroom;
 use App\Models\Major;
 use Illuminate\Http\RedirectResponse;
@@ -18,8 +19,35 @@ class ClassroomController extends Controller
     {
         $search = $request->input('search');
         $tab = $request->input('tab', 'active');
+        $academicYearId = $request->integer('academic_year_id')
+            ?: AcademicYear::where('is_active', true)->value('id');
 
-        $query = Classroom::query()->with(['major', 'students.religion', 'students.gender']);
+        $enrollmentForYear = fn ($query) => $query->when(
+            $academicYearId,
+            fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId),
+        );
+
+        $query = Classroom::query()
+            ->with('major:id,name,code')
+            ->withCount([
+                'enrollments as student_count' => $enrollmentForYear,
+                'enrollments as male_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.gender', fn ($gender) => $gender->where('code', 'L')),
+                'enrollments as female_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.gender', fn ($gender) => $gender->where('code', 'P')),
+                'enrollments as islam_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Islam')),
+                'enrollments as kristen_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Kristen Protestan')),
+                'enrollments as katolik_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Katolik')),
+                'enrollments as hindu_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Hindu')),
+                'enrollments as buddha_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Buddha')),
+                'enrollments as khonghucu_count' => fn ($enrollments) => $enrollmentForYear($enrollments)
+                    ->whereHas('student.religion', fn ($religion) => $religion->where('name', 'Khonghucu')),
+            ]);
 
         if ($tab === 'trashed') {
             $query->onlyTrashed();
@@ -35,7 +63,7 @@ class ClassroomController extends Controller
                         ->orWhere('rombel', 'like', "%{$search}%")
                         ->orWhereHas('major', function ($m) use ($search) {
                             $m->where('name', 'like', "%{$search}%")
-                              ->orWhere('code', 'like', "%{$search}%");
+                                ->orWhere('code', 'like', "%{$search}%");
                         });
                 });
             })
@@ -44,8 +72,6 @@ class ClassroomController extends Controller
             ->orderBy('rombel')
             ->get()
             ->map(function (Classroom $classroom) {
-                $students = $classroom->students;
-
                 return [
                     'id' => $classroom->id,
                     'name' => $classroom->name,
@@ -58,16 +84,16 @@ class ClassroomController extends Controller
                         'name' => $classroom->major->name ?? '-',
                         'code' => $classroom->major->code ?? '-',
                     ],
-                    'studentCount' => $students->count(),
-                    'maleCount' => $students->where('gender.name', 'Laki-laki')->count(),
-                    'femaleCount' => $students->where('gender.name', 'Perempuan')->count(),
+                    'studentCount' => $classroom->student_count,
+                    'maleCount' => $classroom->male_count,
+                    'femaleCount' => $classroom->female_count,
                     'religion' => [
-                        'islam' => $students->where('religion.name', 'Islam')->count(),
-                        'kristen' => $students->where('religion.name', 'Kristen')->count(),
-                        'katolik' => $students->where('religion.name', 'Katolik')->count(),
-                        'hindu' => $students->where('religion.name', 'Hindu')->count(),
-                        'buddha' => $students->where('religion.name', 'Buddha')->count(),
-                        'khonghucu' => $students->where('religion.name', 'Khonghucu')->count(),
+                        'islam' => $classroom->islam_count,
+                        'kristen' => $classroom->kristen_count,
+                        'katolik' => $classroom->katolik_count,
+                        'hindu' => $classroom->hindu_count,
+                        'buddha' => $classroom->buddha_count,
+                        'khonghucu' => $classroom->khonghucu_count,
                     ],
                 ];
             });
@@ -78,6 +104,7 @@ class ClassroomController extends Controller
             'filters' => [
                 'search' => $search ?? '',
                 'tab' => $tab,
+                'academic_year_id' => $academicYearId ?? '',
             ],
             'trashedCount' => Classroom::onlyTrashed()->count(),
         ]);

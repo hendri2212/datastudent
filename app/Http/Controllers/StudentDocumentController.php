@@ -4,16 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Student;
 use App\Models\StudentDocument;
+use App\Services\StudentDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StudentDocumentController extends Controller
 {
-    /**
-     * Menyimpan / Mengunggah berkas dokumen siswa.
-     */
+    public function __construct(private readonly StudentDocumentService $documents) {}
+
     /**
      * Menyimpan / Mengunggah berkas dokumen siswa.
      */
@@ -21,59 +22,19 @@ class StudentDocumentController extends Controller
     {
         $request->validate([
             'document_type_id' => ['required', 'exists:document_types,id'],
-            'file'             => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'], // Maksimal 5MB
-            'notes'            => ['nullable', 'string', 'max:500'],
+            'file' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'], // Maksimal 5MB
+            'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        /** @var \Illuminate\Http\UploadedFile $file */
+        /** @var UploadedFile $file */
         $file = $request->file('file');
 
-        // Menentukan disk penyimpanan (sesuaikan dengan kebutuhan sistem Anda: 'public' atau 'private')
-        $disk = 'public';
-
-        // Simpan file ke direktori storage
-        $filePath = $file->store('student_documents/' . $student->id, $disk);
-
-        // Penanganan jika proses upload gagal (PHPStan Type Assertion)
-        if (! $filePath) {
-            return back()->with('error', 'Gagal mengunggah berkas dokumen.');
-        }
-
-        // Cari dokumen lama jika siswa sudah pernah upload tipe dokumen yang sama
-        // (Mencegah error 'Duplicate Entry' pada constraint UNIQUE: student_id + document_type_id)
-        $existingDoc = $student->documents()
-            ->where('document_type_id', $request->document_type_id)
-            ->first();
-
-        if ($existingDoc) {
-            // Hapus file fisik lama jika ada di storage
-            $oldDisk = $existingDoc->disk ?? $disk;
-            if ($existingDoc->file_path && Storage::disk($oldDisk)->exists($existingDoc->file_path)) {
-                Storage::disk($oldDisk)->delete($existingDoc->file_path);
-            }
-        }
-
-        // Simpan atau Perbarui data di database
-        $student->documents()->updateOrCreate(
-            [
-                'student_id'       => $student->id,
-                'document_type_id' => $request->document_type_id,
-            ],
-            [
-                'original_name' => $file->getClientOriginalName(),
-                'stored_name'   => basename($filePath),
-                'file_path'     => $filePath,
-                'disk'          => $disk,
-                'mime_type'     => $file->getClientMimeType(),
-                'file_size'     => $file->getSize(),
-                'extension'     => strtolower($file->getClientOriginalExtension()),
-                'checksum'      => hash_file('sha256', $file->getRealPath()),
-                'uploaded_by'   => $request->user()?->id,
-                'notes'         => $request->notes,
-                'is_verified'   => false, // Reset status verifikasi saat file diunggah ulang
-                'verified_at'   => null,
-                'verified_by'   => null,
-            ]
+        $this->documents->upload(
+            $student,
+            $request->integer('document_type_id'),
+            $file,
+            $request->string('notes')->toString() ?: null,
+            $request->user()?->id,
         );
 
         return back()->with('success', 'Dokumen berhasil diunggah.');
@@ -90,7 +51,7 @@ class StudentDocumentController extends Controller
 
         $disk = $document->disk ?? 'private';
 
-        if (!Storage::disk($disk)->exists($document->file_path)) {
+        if (! Storage::disk($disk)->exists($document->file_path)) {
             abort(404, 'Berkas fisik tidak ditemukan di penyimpanan.');
         }
 
@@ -110,7 +71,7 @@ class StudentDocumentController extends Controller
 
         $disk = $document->disk ?? 'private';
 
-        if (!Storage::disk($disk)->exists($document->file_path)) {
+        if (! Storage::disk($disk)->exists($document->file_path)) {
             abort(404, 'Berkas fisik tidak ditemukan di penyimpanan.');
         }
 
@@ -118,8 +79,8 @@ class StudentDocumentController extends Controller
 
         // Menggunakan response()->file() langsung untuk menghindari warning Intelephense
         return response()->file($fullPath, [
-            'Content-Type'        => $document->mime_type ?? mime_content_type($fullPath),
-            'Content-Disposition' => 'inline; filename="' . $document->original_name . '"',
+            'Content-Type' => $document->mime_type ?? mime_content_type($fullPath),
+            'Content-Disposition' => 'inline; filename="'.$document->original_name.'"',
         ]);
     }
 
@@ -150,14 +111,7 @@ class StudentDocumentController extends Controller
             abort(403, 'Aksi tidak diizinkan.');
         }
 
-        // Hapus file fisik dari storage
-        $disk = $document->disk ?? 'private';
-        if ($document->file_path && Storage::disk($disk)->exists($document->file_path)) {
-            Storage::disk($disk)->delete($document->file_path);
-        }
-
-        // Melakukan Soft Delete pada record database
-        $document->forceDelete();
+        $this->documents->delete($document);
 
         return back()->with('success', 'Dokumen berhasil dihapus.');
     }

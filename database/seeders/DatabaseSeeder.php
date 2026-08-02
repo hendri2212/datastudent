@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\UserRole;
 use App\Models\AcademicYear;
 use App\Models\BloodType;
 use App\Models\Citizenship;
@@ -18,7 +19,6 @@ use App\Models\School;
 use App\Models\SocialPlatform;
 use App\Models\StudentStatus;
 use App\Models\User;
-use Database\Seeders\StudentSeeder;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
     {
         // 1. Buat data Sekolah pertama (ID 1)
         $school = School::firstOrCreate([
-            'id' => 1
+            'id' => 1,
         ], [
             'name' => 'SMK Negeri 1',
             'npsn' => '10800001',
@@ -40,6 +40,7 @@ class DatabaseSeeder extends Seeder
                 'name' => 'Super Admin',
                 'password' => bcrypt('password'),
                 'email_verified_at' => now(),
+                'role' => UserRole::Admin,
             ]
         );
 
@@ -236,7 +237,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'XI-MM-1', 'major_code' => 'MM', 'level' => 'XI', 'rombel' => 1],
             ['name' => 'XII-AKL-1', 'major_code' => 'AKL', 'level' => 'XII', 'rombel' => 1],
         ];
-        
+
         foreach ($classrooms as $classroom) {
             $major = $majorMap[$classroom['major_code']];
 

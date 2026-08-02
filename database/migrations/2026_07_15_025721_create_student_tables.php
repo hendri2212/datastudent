@@ -30,28 +30,6 @@ return new class extends Migration
             | Master Data
             |--------------------------------------------------------------------------
             */
-            $table->foreignId('school_id')
-                ->constrained()
-                ->restrictOnDelete();
-
-            $table->foreignId('major_id')
-                ->nullable()
-                ->constrained()
-                ->nullOnDelete();
-
-            $table->foreignId('classroom_id')
-                ->nullable()
-                ->constrained()
-                ->nullOnDelete();
-
-            $table->foreignId('academic_year_id')
-                ->constrained()
-                ->restrictOnDelete();
-
-            $table->foreignId('student_status_id')
-                ->constrained()
-                ->restrictOnDelete();
-
             $table->foreignId('religion_id')
                 ->constrained()
                 ->restrictOnDelete();
@@ -59,11 +37,6 @@ return new class extends Migration
             $table->foreignId('gender_id')
                 ->constrained()
                 ->restrictOnDelete();
-
-            $table->foreignId('blood_type_id')
-                ->nullable()
-                ->constrained()
-                ->nullOnDelete();
 
             $table->foreignId('citizenship_id')
                 ->nullable()
@@ -144,18 +117,6 @@ return new class extends Migration
             $table->timestamps();
 
             $table->softDeletes();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Index
-            |--------------------------------------------------------------------------
-            */
-
-            $table->index([
-                'school_id',
-                'major_id',
-                'classroom_id',
-            ]);
 
         });
     }

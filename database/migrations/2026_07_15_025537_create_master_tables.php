@@ -76,6 +76,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
+            $table->unique(['major_id', 'level', 'rombel']);
         });
 
         /*

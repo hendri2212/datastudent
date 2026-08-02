@@ -14,7 +14,9 @@ class MajorController extends Controller
     public function index(): Response
     {
         // Ambil data jurusan beserta relasi siswa/sekolah
-        $majors = Major::withCount('students')
+        $majors = Major::withCount([
+            'enrollments as students_count' => fn ($query) => $query->whereNull('ended_at'),
+        ])
             ->get()
             ->map(function ($major) {
                 return [
