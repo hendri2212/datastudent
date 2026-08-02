@@ -45,8 +45,8 @@ const deleteDialogOpen = ref(false);
 
 const filteredMajors = computed(() => {
     if (!search.value) {
-return props.majors;
-}
+        return props.majors;
+    }
 
     const query = search.value.toLowerCase();
 
@@ -122,8 +122,8 @@ const saveMajor = (data: MajorFormData) => {
 
 const deleteMajor = () => {
     if (!selectedMajor.value) {
-return;
-}
+        return;
+    }
 
     router.delete(`/majors/${selectedMajor.value.id}`, {
         onSuccess: () => {
@@ -266,9 +266,9 @@ return;
                                 </td>
                                 <td class="px-6 py-4 text-right tabular-nums">
                                     {{
-                                        (major.studentCount || 0).toLocaleString(
-                                            'id-ID',
-                                        )
+                                        (
+                                            major.studentCount || 0
+                                        ).toLocaleString('id-ID')
                                     }}
                                 </td>
                                 <td class="px-6 py-4">

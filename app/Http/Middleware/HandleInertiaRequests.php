@@ -40,6 +40,13 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
+                'permissions' => [
+                    'manageStudents' => $request->user()?->can('manage-students') ?? false,
+                    'manageAcademics' => $request->user()?->can('manage-academics') ?? false,
+                    'manageMasterData' => $request->user()?->can('manage-master-data') ?? false,
+                    'verifyStudents' => $request->user()?->can('verify-students') ?? false,
+                    'forceDelete' => $request->user()?->can('force-delete') ?? false,
+                ],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

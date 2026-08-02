@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('students', StudentController::class)
             ->only(['index', 'store', 'update', 'destroy'])
             ->middleware('can:manage-students');
+        Route::get('/students/{student}/detail', [StudentController::class, 'detail'])->name('students.detail');
 
         // Verifikasi Siswa
         Route::post('/students/{student}/verify', [StudentVerificationController::class, 'verify'])->middleware('can:verify-students')->name('students.verify');

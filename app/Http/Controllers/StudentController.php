@@ -18,10 +18,13 @@ use App\Models\Religion;
 use App\Models\School;
 use App\Models\SocialPlatform;
 use App\Models\Student;
+use App\Models\StudentAchievement;
 use App\Models\StudentStatus;
+use App\Models\StudentViolation;
 use App\Services\StudentDocumentService;
 use App\Services\StudentService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -85,6 +88,7 @@ class StudentController extends Controller
 
         return Inertia::render('students/Index', [
             'students' => $query->latest('id')->paginate(10)->withQueryString(),
+            'statistics' => $this->statistics(clone $query),
             ...$this->masterData(),
             'filters' => [
                 'search' => '',
@@ -99,6 +103,13 @@ class StudentController extends Controller
                 'tab' => 'active',
                 ...$filters,
             ],
+        ]);
+    }
+
+    public function detail(Student $student): JsonResponse
+    {
+        return response()->json([
+            'student' => $student->load($this->studentDetailRelations()),
         ]);
     }
 
@@ -157,6 +168,17 @@ class StudentController extends Controller
             'gender:id,code,name',
             'religion:id,name',
             'verifier:id,name',
+            'currentEnrollment.classroom.major.school',
+            'currentEnrollment.academicYear:id,name,is_active,start_date,end_date',
+            'currentEnrollment.status:id,name',
+        ];
+    }
+
+    /** @return list<string> */
+    private function studentDetailRelations(): array
+    {
+        return [
+            ...$this->studentRelations(),
             'family.fatherOccupation:id,name',
             'family.fatherIncomeCategory:id,name',
             'family.motherOccupation:id,name',
@@ -171,9 +193,31 @@ class StudentController extends Controller
             'documents.verifier:id,name',
             'socials.socialPlatform:id,name,icon,base_url',
             'violations',
-            'currentEnrollment.classroom.major.school',
-            'currentEnrollment.academicYear:id,name,is_active,start_date,end_date',
-            'currentEnrollment.status:id,name',
+        ];
+    }
+
+    /**
+     * @param  Builder<Student>  $query
+     * @return array<string, mixed>
+     */
+    private function statistics(Builder $query): array
+    {
+        $studentIds = (clone $query)->select('students.id');
+        $genderCounts = (clone $query)
+            ->selectRaw('gender_id, COUNT(*) as aggregate')
+            ->groupBy('gender_id')
+            ->pluck('aggregate', 'gender_id');
+
+        return [
+            'total' => (clone $query)->count(),
+            'verified' => (clone $query)->whereNotNull('verified_at')->count(),
+            'unverified' => (clone $query)->whereNull('verified_at')->count(),
+            'achievements' => StudentAchievement::whereIn('student_id', clone $studentIds)->count(),
+            'violation_points' => (int) StudentViolation::whereIn('student_id', clone $studentIds)->sum('point'),
+            'genders' => Gender::whereIn('id', $genderCounts->keys())
+                ->pluck('name', 'id')
+                ->mapWithKeys(fn (string $name, int $id) => [$name => (int) $genderCounts[$id]])
+                ->all(),
         ];
     }
 

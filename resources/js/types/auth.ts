@@ -2,6 +2,7 @@ export type User = {
     id: number;
     name: string;
     email: string;
+    role: 'admin' | 'operator' | 'student';
     avatar?: string;
     email_verified_at: string | null;
     two_factor_enabled?: boolean;
@@ -12,6 +13,13 @@ export type User = {
 
 export type Auth = {
     user: User;
+    permissions: {
+        manageStudents: boolean;
+        manageAcademics: boolean;
+        manageMasterData: boolean;
+        verifyStudents: boolean;
+        forceDelete: boolean;
+    };
 };
 
 /* @chisel-passkeys */
