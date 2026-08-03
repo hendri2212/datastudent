@@ -70,7 +70,7 @@ const props = defineProps<{
     documentTypes?: DocumentType[];
 }>();
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'saved']);
 
 const activeTab = ref('biodata');
 
@@ -137,6 +137,7 @@ const form = useForm({
     // File Document
     new_document_name: '',
     new_document_file: null as File | null,
+    photo_file: null as File | null,
 });
 
 // Helper Sanitasi ID / Angka
@@ -173,16 +174,192 @@ const formatDateForInput = (dateStr: unknown): string => {
 };
 
 // Reset State Input Dokumen
+const photoPreviewUrl = ref<string | null>(null);
+const photoPosition = ref({ x: 50, y: 50 });
+const photoZoom = ref(100);
+const photoCacheBuster = ref(Date.now());
+const isPhotoCropOpen = ref(false);
+const cropDrag = ref<{
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+} | null>(null);
+
 const resetDocumentFields = () => {
     form.new_document_file = null;
     form.new_document_name = '';
     form.document_type_id = null;
 };
 
+const clearPhotoPreviewUrl = () => {
+    if (photoPreviewUrl.value?.startsWith('blob:')) {
+        URL.revokeObjectURL(photoPreviewUrl.value);
+    }
+
+    photoPreviewUrl.value = null;
+};
+
+const resetPhotoField = () => {
+    form.photo_file = null;
+    clearPhotoPreviewUrl();
+    photoPosition.value = { x: 50, y: 50 };
+    photoZoom.value = 100;
+    photoCacheBuster.value = Date.now();
+    isPhotoCropOpen.value = false;
+};
+
 const handleDocumentFileChange = (event: Event) => {
     form.new_document_file =
         (event.target as HTMLInputElement).files?.[0] ?? null;
 };
+
+const createImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+
+const createCroppedPhotoFile = async (
+    file: File,
+    position: { x: number; y: number },
+    zoom: number,
+): Promise<File | null> => {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+        const img = await createImage(objectUrl);
+        const frameSize = 512;
+        const baseScale = Math.max(frameSize / img.naturalWidth, frameSize / img.naturalHeight);
+        const effectiveScale = baseScale * (zoom / 100);
+        const displayedWidth = img.naturalWidth * effectiveScale;
+        const displayedHeight = img.naturalHeight * effectiveScale;
+        const overflowX = Math.max(displayedWidth - frameSize, 0);
+        const overflowY = Math.max(displayedHeight - frameSize, 0);
+        const offsetX = (overflowX * position.x) / 100;
+        const offsetY = (overflowY * position.y) / 100;
+        const srcX = Math.max(0, Math.min(img.naturalWidth, offsetX / effectiveScale));
+        const srcY = Math.max(0, Math.min(img.naturalHeight, offsetY / effectiveScale));
+        const srcSize = Math.max(1, frameSize / effectiveScale);
+        const clampedSrcX = Math.round(Math.max(0, Math.min(img.naturalWidth - srcSize, srcX)));
+        const clampedSrcY = Math.round(Math.max(0, Math.min(img.naturalHeight - srcSize, srcY)));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = frameSize;
+        canvas.height = frameSize;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+            return null;
+        }
+
+        ctx.drawImage(
+            img,
+            clampedSrcX,
+            clampedSrcY,
+            srcSize,
+            srcSize,
+            0,
+            0,
+            frameSize,
+            frameSize,
+        );
+
+        return await new Promise((resolve) => {
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) {
+                        resolve(null);
+
+                        return;
+                    }
+
+                    const croppedFile = new File([blob], file.name, {
+                        type: file.type || 'image/png',
+                    });
+                    resolve(croppedFile);
+                },
+                file.type || 'image/png',
+                0.92,
+            );
+        });
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+};
+
+const prepareCroppedPhoto = async (): Promise<void> => {
+    if (!form.photo_file) {
+        return;
+    }
+
+    const cropped = await createCroppedPhotoFile(
+        form.photo_file,
+        photoPosition.value,
+        photoZoom.value,
+    );
+
+    if (cropped) {
+        form.photo_file = cropped;
+        clearPhotoPreviewUrl();
+        photoPreviewUrl.value = URL.createObjectURL(cropped);
+    }
+};
+
+const handlePhotoFileChange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    form.photo_file = file;
+    photoPosition.value = { x: 50, y: 50 };
+
+    clearPhotoPreviewUrl();
+
+    if (file) {
+        photoPreviewUrl.value = URL.createObjectURL(file);
+    }
+};
+
+const handleCropPointerDown = (event: PointerEvent) => {
+    cropDrag.value = {
+        startX: event.clientX,
+        startY: event.clientY,
+        x: photoPosition.value.x,
+        y: photoPosition.value.y,
+    };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+};
+
+const handleCropPointerMove = (event: PointerEvent) => {
+    if (!cropDrag.value) {
+        return;
+    }
+
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const dx = event.clientX - cropDrag.value.startX;
+    const dy = event.clientY - cropDrag.value.startY;
+    const deltaX = (dx / rect.width) * 100;
+    const deltaY = (dy / rect.height) * 100;
+    photoPosition.value.x = Math.min(100, Math.max(0, cropDrag.value.x + deltaX));
+    photoPosition.value.y = Math.min(100, Math.max(0, cropDrag.value.y + deltaY));
+};
+
+const handleCropPointerEnd = () => {
+    cropDrag.value = null;
+};
+
+const studentPhotoSrc = computed(() => {
+    if (photoPreviewUrl.value) {
+        return photoPreviewUrl.value;
+    }
+
+    if (!props.student?.photo_url) {
+        return '';
+    }
+
+    return `${props.student.photo_url}?t=${photoCacheBuster.value}`;
+});
 
 const documentPreviewUrl = (documentId: number) =>
     props.student
@@ -241,6 +418,7 @@ watch(
     () => props.student,
     (newStudent) => {
         if (newStudent) {
+            photoCacheBuster.value = Date.now();
             form.reset();
             form.clearErrors();
             form.school_id = parseNullableId(newStudent.school_id);
@@ -267,7 +445,8 @@ watch(
             form.address = newStudent.address || '';
             form.postal_code = newStudent.postal_code || '';
 
-            resetDocumentFields();
+                    resetDocumentFields();
+            resetPhotoField();
 
             // Fill Family
             if (newStudent.family) {
@@ -498,10 +677,11 @@ const handleClose = () => {
     form.clearErrors();
     activeTab.value = 'biodata';
     resetDocumentFields();
+    resetPhotoField();
     emit('close');
 };
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
     if (isDocumentTypeExists.value && form.new_document_file) {
         if (
             !confirm(
@@ -585,20 +765,28 @@ const handleSubmit = () => {
         })),
     }));
 
+    if (form.photo_file) {
+        await prepareCroppedPhoto();
+    }
+
     if (props.student && props.student.id) {
-        if (form.new_document_file) {
+        if (form.new_document_file || form.photo_file) {
             form.post(updateStudent.url(props.student.id), {
                 headers: { 'X-HTTP-Method-Override': 'PUT' },
                 onSuccess: () => {
                     resetDocumentFields();
+                    resetPhotoField();
                     handleClose();
+                    emit('saved');
                 },
             });
         } else {
             form.put(updateStudent.url(props.student.id), {
                 onSuccess: () => {
                     resetDocumentFields();
+                    resetPhotoField();
                     handleClose();
+                    emit('saved');
                 },
             });
         }
@@ -606,7 +794,9 @@ const handleSubmit = () => {
         form.post(storeStudent.url(), {
             onSuccess: () => {
                 resetDocumentFields();
+                resetPhotoField();
                 handleClose();
+                emit('saved');
             },
         });
     }
@@ -1020,6 +1210,183 @@ const handleSubmit = () => {
                                 v-model="form.address"
                                 placeholder="Alamat lengkap siswa"
                             />
+                        </div>
+                        <div class="space-y-1.5">
+                            <Label for="photo_file">Foto Siswa</Label>
+                            <div class="flex flex-col gap-3 md:flex-row md:items-center">
+                                <div
+                                    class="relative h-28 w-28 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100"
+                                >
+                                    <img
+                                        v-if="studentPhotoSrc"
+                                        :src="studentPhotoSrc"
+                                        alt="Foto Siswa"
+                                        class="h-full w-full object-cover"
+                                        :style="{
+                                            objectPosition: `${photoPosition.x}% ${photoPosition.y}%`,
+                                        }"
+                                    />
+                                    <div
+                                        v-else
+                                        class="flex h-full items-center justify-center bg-neutral-50 text-xs text-neutral-500"
+                                    >
+                                        No Photo
+                                    </div>
+                                </div>
+                                <div class="flex-1 space-y-2">
+                                    <Input
+                                        id="photo_file"
+                                        type="file"
+                                        accept="image/*"
+                                        @change="handlePhotoFileChange"
+                                        class="max-w-lg"
+                                    />
+                                    <div
+                                        v-if="photoPreviewUrl"
+                                        class="space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300"
+                                    >
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="font-semibold">Atur posisi foto</span>
+                                            <button
+                                                type="button"
+                                                class="text-blue-600 hover:underline dark:text-blue-400"
+                                                @click="isPhotoCropOpen = true"
+                                            >
+                                                Buka popup
+                                            </button>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <div>
+                                                <label class="block text-[11px] uppercase tracking-wide text-neutral-500">Horizontal</label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    v-model.number="photoPosition.x"
+                                                    class="w-full"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-[11px] uppercase tracking-wide text-neutral-500">Vertikal</label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    v-model.number="photoPosition.y"
+                                                    class="w-full"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    v-if="isPhotoCropOpen"
+                                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                                >
+                                    <div class="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-neutral-900">
+                                        <div class="mb-4 flex items-center justify-between">
+                                            <div>
+                                                <h3 class="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Geser Foto</h3>
+                                                <p class="text-xs text-neutral-500 dark:text-neutral-400">Tarik foto di area crop untuk mengatur posisi.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                class="rounded-md px-3 py-1 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                                                @click="isPhotoCropOpen = false"
+                                            >Tutup</button>
+                                        </div>
+
+                                        <div class="relative mx-auto h-[420px] w-full max-w-xl overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-900">
+                                            <img
+                                                v-if="photoPreviewUrl"
+                                                :src="photoPreviewUrl"
+                                                alt="Crop Preview"
+                                                class="absolute inset-0 h-full w-full object-cover"
+                                                :style="{
+                                                    transform: `scale(${photoZoom / 100})`,
+                                                    transformOrigin: `${photoPosition.x}% ${photoPosition.y}%`,
+                                                    objectPosition: `${photoPosition.x}% ${photoPosition.y}%`,
+                                                    cursor: cropDrag ? 'grabbing' : 'grab',
+                                                }"
+                                                @pointerdown="handleCropPointerDown"
+                                                @pointermove="handleCropPointerMove"
+                                                @pointerup="handleCropPointerEnd"
+                                                @pointercancel="handleCropPointerEnd"
+                                            />
+                                            <div class="pointer-events-none absolute inset-0 rounded-3xl">
+                                                <div class="absolute inset-0 rounded-3xl border-4 border-white/80"></div>
+                                                <div class="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                                                    <div class="border-r border-b border-white/30"></div>
+                                                    <div class="border-r border-b border-white/30"></div>
+                                                    <div class="border-b border-white/30"></div>
+                                                    <div class="border-r border-b border-white/30"></div>
+                                                    <div class="border-r border-b border-white/30"></div>
+                                                    <div class="border-b border-white/30"></div>
+                                                    <div class="border-r border-white/30"></div>
+                                                    <div class="border-r border-white/30"></div>
+                                                    <div></div>
+                                                </div>
+                                                <div class="pointer-events-none absolute left-0 top-0 h-6 w-6 border-l-4 border-t-4 border-white/90"></div>
+                                                <div class="pointer-events-none absolute right-0 top-0 h-6 w-6 border-r-4 border-t-4 border-white/90"></div>
+                                                <div class="pointer-events-none absolute left-0 bottom-0 h-6 w-6 border-l-4 border-b-4 border-white/90"></div>
+                                                <div class="pointer-events-none absolute right-0 bottom-0 h-6 w-6 border-r-4 border-b-4 border-white/90"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                            <div>
+                                                <label class="block text-[11px] uppercase tracking-wide text-neutral-500">Horizontal</label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    v-model.number="photoPosition.x"
+                                                    class="w-full"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-[11px] uppercase tracking-wide text-neutral-500">Vertikal</label>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    v-model.number="photoPosition.y"
+                                                    class="w-full"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label class="block text-[11px] uppercase tracking-wide text-neutral-500">Zoom</label>
+                                                <input
+                                                    type="range"
+                                                    min="100"
+                                                    max="200"
+                                                    step="5"
+                                                    v-model.number="photoZoom"
+                                                    class="w-full"
+                                                />
+                                                <div class="mt-1 text-xs text-neutral-500">{{ photoZoom }}%</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-6 flex items-center justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                class="rounded-md border border-neutral-200 px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-100 dark:border-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                                                @click="photoPosition = { x: 50, y: 50 }"
+                                            >Reset</button>
+                                            <button
+                                                type="button"
+                                                class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                                                @click="isPhotoCropOpen = false"
+                                            >Simpan</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <span
+                                v-if="form.errors.photo_file"
+                                class="text-xs text-red-500"
+                            >{{ form.errors.photo_file }}</span>
                         </div>
                         <div class="space-y-1.5">
                             <Label for="school_id">

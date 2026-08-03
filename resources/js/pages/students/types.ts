@@ -210,6 +210,8 @@ export interface Student {
     socials?: StudentSocial[];
     violations?: StudentViolation[];
     documents?: StudentDocument[];
+    photo?: string | null;
+    photo_url?: string | null;
 }
 
 export interface StudentStatistics {

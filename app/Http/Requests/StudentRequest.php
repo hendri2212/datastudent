@@ -108,6 +108,7 @@ class StudentRequest extends FormRequest
             'violations.*.violation_date' => ['nullable', 'date'],
             'violations.*.description' => ['nullable', 'string'],
 
+            'photo_file' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'document_type_id' => ['nullable', 'required_with:new_document_file', 'integer', 'exists:document_types,id'],
             'new_document_name' => ['nullable', 'string', 'max:255'],
             'new_document_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],

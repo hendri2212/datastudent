@@ -304,6 +304,14 @@ const handleDelete = () => {
     });
 };
 
+const refreshPageData = async () => {
+    if (selectedStudent.value?.id) {
+        selectedStudent.value = await loadStudentDetail(selectedStudent.value);
+    }
+
+    router.reload();
+};
+
 const handleVerifyStudent = (student: Student) => {
     if (!student?.id) {
         return;
@@ -1246,6 +1254,7 @@ const shareDocument = async (doc: StudentDocument) => {
         :social-platforms="props.socialPlatforms"
         :document-types="props.documentTypes"
         @close="isFormModalOpen = false"
+        @saved="refreshPageData"
     />
 
     <Dialog :open="isDetailModalOpen" @update:open="isDetailModalOpen = $event">
@@ -1274,6 +1283,20 @@ const shareDocument = async (doc: StudentDocument) => {
                 <div
                     class="flex flex-col justify-between gap-4 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 md:flex-row md:items-center dark:border-neutral-700 dark:from-neutral-800 dark:to-neutral-900"
                 >
+                     <div class="h-24 w-24 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 dark:border-neutral-700">
+                                <img
+                                    v-if="selectedStudent.photo_url"
+                                    :src="selectedStudent.photo_url"
+                                    alt="Foto Siswa"
+                                    class="h-full w-full object-cover"
+                                />
+                                <div
+                                    v-else
+                                    class="flex h-full items-center justify-center bg-neutral-50 text-xs text-neutral-500 dark:bg-neutral-900"
+                                >
+                                    No Photo
+                                </div>
+                            </div>
                     <div>
                         <h3
                             class="flex items-center gap-2 text-xl font-bold text-neutral-900 dark:text-neutral-100"
@@ -1304,6 +1327,7 @@ const shareDocument = async (doc: StudentDocument) => {
                             }}</Badge>
                         </div>
                     </div>
+                    
                     <Button
                         variant="outline"
                         size="sm"

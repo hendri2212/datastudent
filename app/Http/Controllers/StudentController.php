@@ -163,6 +163,26 @@ class StudentController extends Controller
         return back()->with('success', 'Data siswa berhasil dihapus permanen.');
     }
 
+    public function photo(Student $student): \Symfony\Component\HttpFoundation\Response
+    {
+        if (! $student->photo) {
+            return response()->json(['message' => 'Siswa tidak memiliki foto'], 404);
+        }
+
+        if (! Storage::disk('public')->exists($student->photo)) {
+            return response()->json(['message' => 'File gambar tidak ditemukan di server'], 404);
+        }
+
+        return response()->file(
+            Storage::disk('public')->path($student->photo),
+            [
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+            ],
+        );
+    }
+
     /** @return list<string> */
     private function studentRelations(): array
     {
@@ -250,8 +270,23 @@ class StudentController extends Controller
     /** @param array<string, mixed> $data */
     private function uploadFromForm(StudentRequest $request, Student $student, array $data): void
     {
-        $file = $request->file('new_document_file');
+        // Handle photo upload (replace previous if exists)
+        $photo = $request->file('photo_file');
+        if ($photo !== null) {
+            // Delete previous photo if present
+            if ($student->photo && Storage::disk('public')->exists($student->photo)) {
+                Storage::disk('public')->delete($student->photo);
+            }
 
+            $path = $photo->store("student_photos/{$student->id}", 'public');
+            if (is_string($path)) {
+                $student->photo = $path;
+                $student->save();
+            }
+        }
+
+        // Handle document upload if provided
+        $file = $request->file('new_document_file');
         if ($file === null) {
             return;
         }

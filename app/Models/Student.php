@@ -26,6 +26,7 @@ class Student extends Model
         'classroom',
         'academic_year',
         'student_status',
+        'photo_url',
     ];
 
     protected $casts = [
@@ -87,6 +88,18 @@ class Student extends Model
     public function getStudentStatusAttribute(): ?StudentStatus
     {
         return $this->currentEnrollment?->status;
+    }
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        if (! $this->photo) {
+            return null;
+        }
+
+        return route('students.photo', [
+            'student' => $this->id,
+            't' => $this->updated_at->timestamp ?? time(),
+        ]);
     }
 
     /**
