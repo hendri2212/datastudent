@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm , usePage, router } from '@inertiajs/vue3';
 import {
     ClipboardCheck,
     ArrowRight,
@@ -291,6 +291,20 @@ const isStepValid = computed(() => {
             return true;
         default:
             return false;
+    }
+});
+
+const page = usePage();
+
+onMounted(() => {
+    // Jalankan auto-load draft yang sudah ada
+    loadDraftFromLocalStorage();
+
+    // Cek apakah user belum terautentikasi / belum login
+    // Sesuaikan `page.props.auth?.user` dengan struktur objek auth di Laravel Inertia Anda
+    if (!page.props.auth?.user) {
+        // Redirect paksa ke halaman login
+        router.visit('/login'); 
     }
 });
 

@@ -12,7 +12,7 @@ createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'Welcome':
-                return null;
+                return undefined; // Tidak menggunakan layout untuk halaman Welcome
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):
