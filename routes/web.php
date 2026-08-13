@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\AcademicYearController;
-// Controller Utama & Siswa
 use App\Http\Controllers\BloodTypeController;
 use App\Http\Controllers\CitizenshipController;
 use App\Http\Controllers\ClassroomController;
@@ -10,7 +9,6 @@ use App\Http\Controllers\GenderController;
 use App\Http\Controllers\IncomeCategoryController;
 use App\Http\Controllers\MajorController;
 use App\Http\Controllers\OccupationController;
-// Controller Master Data & Akademik
 use App\Http\Controllers\RelationshipTypeController;
 use App\Http\Controllers\ReligionController;
 use App\Http\Controllers\SocialPlatformController;
@@ -23,10 +21,16 @@ use App\Http\Controllers\StudentHealthController;
 use App\Http\Controllers\StudentSocialController;
 use App\Http\Controllers\StudentStatusController;
 use App\Http\Controllers\StudentVerificationController;
+use App\Http\Controllers\WelcomeController;
 use Illuminate\Support\Facades\Route;
 
 // 1. ROUTE HALAMAN UTAMA (LANDING PAGE)
-Route::inertia('/', 'Welcome')->name('home');
+Route::middleware(['auth'])->group(function () {
+    Route::get('/', [WelcomeController::class, 'index'])->name('home');
+    Route::post('/pendaftaran', [WelcomeController::class, 'store'])->name('welcome.register');
+    Route::post('/students', [StudentController::class, 'store'])->name('students.store');
+    Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
+});
 
 // 2. ROUTE APLIKASI UTAMA (MEMBUTUHKAN AUTHENTICATION)
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -34,17 +38,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
     // ==========================================
-    // ROUTE SISWA & SUB-RELASI
+    // ROUTE SISWA (AKSES UMUM UNTUK USER TERAUTENTIKASI)
+    // ==========================================
+
+
+    // ==========================================
+    // ROUTE MANAGEMENT SISWA (KHUSUS ADMIN / OPERATOR)
     // ==========================================
     Route::middleware('can:manage-students')->group(function () {
         // Custom Actions untuk Soft Deletes Siswa
-        Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->middleware('can:manage-students')->name('students.restore');
+        Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
         Route::delete('/students/{id}/force-delete', [StudentController::class, 'forceDelete'])->middleware('can:force-delete')->name('students.force-delete');
 
-        // Resource Route Siswa (index, create, store, show, edit, update, destroy)
-        Route::resource('students', StudentController::class)
-            ->only(['index', 'store', 'update', 'destroy'])
-            ->middleware('can:manage-students');
+        // Route list (index) dan hapus (destroy) khusus Admin
+        Route::get('/students', [StudentController::class, 'index'])->name('students.index');
+        Route::delete('/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
         Route::get('/students/{student}/detail', [StudentController::class, 'detail'])->name('students.detail');
 
         // Verifikasi Siswa
@@ -80,7 +88,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/students/{student}/achievements', [StudentAchievementController::class, 'store'])->name('students.achievements.store');
         Route::put('/achievements/{achievement}', [StudentAchievementController::class, 'update'])->name('achievements.update');
         Route::delete('/achievements/{achievement}', [StudentAchievementController::class, 'destroy'])->name('achievements.destroy');
-
     });
 
     // ==========================================

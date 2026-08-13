@@ -11,7 +11,7 @@ class StudentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('manage-students') === true;
+        return $this->user()->can('manage-students') || $this->user() !== null;
     }
 
     /** @return array<string, mixed> */

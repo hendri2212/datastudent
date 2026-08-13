@@ -15,12 +15,23 @@ class AcademicYearController extends Controller
         $search = $request->input('search');
 
         $academicYears = AcademicYear::query()
-            ->withCount(['enrollments as students_count'])
+            ->withCount('enrollments as students_count')
             ->when($search, function ($query, $search) {
                 $query->where('name', 'like', "%{$search}%");
             })
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($year) {
+                return [
+                    'id' => $year->id,
+                    'name' => $year->name,
+                    'start_date' => $year->start_date,
+                    'end_date' => $year->end_date,
+                    'is_active' => $year->is_active,
+                    'students_count' => $year->students_count ?? 0,
+                    'studentCount' => $year->students_count ?? 0,
+                ];
+            });
 
         return Inertia::render('master/academic-years/Index', [
             'academicYears' => $academicYears,

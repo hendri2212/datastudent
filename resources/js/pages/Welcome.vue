@@ -1,1618 +1,1432 @@
 <script setup lang="ts">
-import { Head, useForm , usePage, router } from '@inertiajs/vue3';
+import { useForm, router } from '@inertiajs/vue3';
 import {
-    ClipboardCheck,
-    ArrowRight,
-    ArrowLeft,
-    GraduationCap,
-    UserCheck,
-    Instagram,
-    Globe,
-    School,
+    Loader2,
+    User,
     Users,
-    ClipboardList,
-    Heart,
-    FileArchive,
-    CheckCircle2,
-    AlertCircle,
-    RotateCcw,
+    HeartPulse,
+    History,
+    Share2,
+    Trophy,
+    Shield,
+    FileText,
+    Plus,
+    Trash2,
+    ChevronLeft,
+    ChevronRight,
+    Check,
+    UploadCloud,
+    Crop,
+    Sparkles,
 } from 'lucide-vue-next';
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, watch, computed } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import type {
+    Student,
+    School,
+    Major,
+    Classroom,
+    AcademicYear,
+    MasterOption,
+    MasterOptionCode,
+    EducationLevel,
+    SocialPlatform,
+    DocumentType,
+    AchievementForm,
+    EducationHistoryForm,
+    StudentSocialForm,
+    ViolationForm,
+} from '@/pages/students/types';
+import {
+    store as storeStudent,
+    update as updateStudent,
+} from '@/routes/students';
+import { destroy as destroyDocument, preview as previewDocument } from '@/routes/students/documents';
 
-// --- WIZARD LOGIC ---
-const currentStep = ref(1);
-const totalSteps = 7;
-const errorMessage = ref('');
+// Import Types
 
+const props = withDefaults(
+    defineProps<{
+        student?: Student | null;
+        schools?: School[];
+        majors?: Major[];
+        classrooms?: Classroom[];
+        academicYears?: AcademicYear[];
+        genders?: MasterOptionCode[];
+        religions?: MasterOption[];
+        studentStatuses?: MasterOption[];
+        bloodTypes?: MasterOption[];
+        occupations?: MasterOption[];
+        incomeCategories?: MasterOption[];
+        citizenships?: MasterOption[];
+        educationLevels?: EducationLevel[];
+        socialPlatforms?: SocialPlatform[];
+        relationshipTypes?: MasterOption[];
+        documentTypes?: DocumentType[];
+    }>(),
+    {
+        student: null,
+    }
+);
+
+const emit = defineEmits(['close', 'saved']);
+
+// Wizard Steps Configuration
 const steps = [
-    { id: 1, name: 'Identitas Diri' },
-    { id: 2, name: 'Kelas & Jurusan' },
-    { id: 3, name: 'Keluarga & Wali' },
-    { id: 4, name: 'Riwayat Sekolah' },
-    { id: 5, name: 'Kesehatan' },
-    { id: 6, name: 'Unggah Dokumen' },
-    { id: 7, name: 'Peninjauan Data' },
+    { id: 'biodata', label: 'Biodata', icon: User },
+    { id: 'family', label: 'Keluarga', icon: Users },
+    { id: 'health', label: 'Kesehatan', icon: HeartPulse },
+    { id: 'education', label: 'Riwayat', icon: History },
+    { id: 'socials', label: 'Medsos', icon: Share2 },
+    { id: 'achievements', label: 'Prestasi', icon: Trophy },
+    { id: 'violations', label: 'Kedisiplinan', icon: Shield },
+    { id: 'documents', label: 'Dokumen', icon: FileText },
 ];
 
-const currentYear = 2026;
+const currentStepIndex = ref(0);
+const currentStep = computed(() => steps[currentStepIndex.value]);
 
-// Daftar Dokumen Wajib & Opsional
-const requiredDocTypes = [
-    'Kartu Keluarga (KK)',
-    'Akta Kelahiran',
-    'Ijazah SD',
-    'Ijazah SMP',
-];
+const isFirstStep = computed(() => currentStepIndex.value === 0);
+const isLastStep = computed(() => currentStepIndex.value === steps.length - 1);
 
-const optionalDocTypes = ['KTP / KIA'];
+const goToStep = (index: number) => {
+    if (index >= 0 && index < steps.length) {
+        currentStepIndex.value = index;
+    }
+};
 
-// Gabungan semua tipe dokumen untuk tampilan form
-const allDocTypes = [
-    ...requiredDocTypes.map((doc) => ({ name: doc, required: true })),
-    ...optionalDocTypes.map((doc) => ({ name: doc, required: false })),
-];
+const nextStep = () => {
+    if (!isLastStep.value) {
+        currentStepIndex.value++;
+    }
+};
 
-// --- MASTER DATA ---
-const internalGenders = [
-    { id: 1, name: 'Laki-laki' },
-    { id: 2, name: 'Perempuan' },
-];
+const prevStep = () => {
+    if (!isFirstStep.value) {
+        currentStepIndex.value--;
+    }
+};
 
-const internalReligions = [
-    { id: 1, name: 'Islam' },
-    { id: 2, name: 'Kristen' },
-    { id: 3, name: 'Katolik' },
-    { id: 4, name: 'Hindu' },
-    { id: 5, name: 'Buddha' },
-    { id: 6, name: 'Khonghucu' },
-];
-
-const internalMajors = [
-    { id: 1, name: 'Rekayasa Perangkat Lunak', code: 'RPL' },
-    { id: 2, name: 'Akuntansi & Keuangan Lembaga', code: 'AKL' },
-    { id: 3, name: 'Desain Komunikasi Visual', code: 'DKV' },
-    { id: 4, name: 'Teknik Komputer & Jaringan', code: 'TKJ' },
-];
-
-const internalClassrooms = [
-    // RPL (major_id: 1)
-    { id: 1, major_id: 1, name: 'X RPL 1' },
-    { id: 2, major_id: 1, name: 'X RPL 2' },
-    { id: 3, major_id: 1, name: 'XI RPL 1' },
-    { id: 4, major_id: 1, name: 'XI RPL 2' },
-    { id: 5, major_id: 1, name: 'XII RPL 1' },
-    { id: 6, major_id: 1, name: 'XII RPL 2' },
-
-    // AKL (major_id: 2)
-    { id: 7, major_id: 2, name: 'X AKL 1' },
-    { id: 8, major_id: 2, name: 'XI AKL 1' },
-    { id: 9, major_id: 2, name: 'XII AKL 1' },
-
-    // DKV (major_id: 3)
-    { id: 10, major_id: 3, name: 'X DKV 1' },
-    { id: 11, major_id: 3, name: 'XI DKV 1' },
-    { id: 12, major_id: 3, name: 'XII DKV 1' },
-
-    // TKJ (major_id: 4)
-    { id: 13, major_id: 4, name: 'X TKJ 1' },
-    { id: 14, major_id: 4, name: 'XI TKJ 1' },
-    { id: 15, major_id: 4, name: 'XII TKJ 1' },
-];
-
-// --- FORM STATE ---
+// Form State
 const form = useForm({
-    is_locked: false,
-
-    // Step 1: Identitas
-    name: '',
-    nis: '',
+    school_id: null as number | null,
+    major_id: null as number | null,
+    classroom_id: null as number | null,
+    academic_year_id: null as number | null,
+    gender_id: null as number | null,
+    religion_id: null as number | null,
+    student_status_id: null as number | null,
+    citizenship_id: null as number | null,
     nisn: '',
+    nis: '',
+    full_name: '',
+    nickname: '',
     birth_place: '',
-    birth_date: '',
-    gender_id: 1,
-    religion_id: 1,
-    email: '',
+    birth_date: '' as string,
     phone: '',
-    instagram_url: '',
-    linkedin_url: '',
+    email: '',
     address: '',
+    postal_code: '',
+    document_type_id: null as number | null,
 
-    // Step 2: Pemetaan Kelas & Jurusan
-    major_id: 1,
-    classroom_id: 1,
-    student_status_id: 1,
-
-    // Step 3: Keluarga & Wali
     family: {
         father_name: '',
+        father_occupation_id: null as number | null,
+        father_income_category_id: null as number | null,
         father_phone: '',
         mother_name: '',
+        mother_occupation_id: null as number | null,
+        mother_income_category_id: null as number | null,
         mother_phone: '',
         guardian_name: '',
+        guardian_occupation_id: null as number | null,
+        guardian_income_category_id: null as number | null,
         guardian_phone: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
+        relationship_type_id: null as number | null,
+        notes: '',
     },
 
-    // Step 4: Riwayat Pendidikan
-    education_history: {
+    health: {
+        blood_type_id: null as number | null,
+        height: '' as string | number,
+        weight: '' as string | number,
+        allergies: '',
+        medical_history: '',
+        disabilities: '',
+        medications: '',
+        hospital: '',
+        doctor: '',
+        notes: '',
+    },
+
+    education_histories: [] as EducationHistoryForm[],
+    socials: [] as StudentSocialForm[],
+    achievements: [] as AchievementForm[],
+    violations: [] as ViolationForm[],
+
+    new_document_name: '',
+    new_document_file: null as File | null,
+    photo_file: null as File | null,
+});
+
+// Helpers
+const parseNullableId = (val: unknown) =>
+    val === '' || val === undefined || val === null ? null : Number(val);
+
+const parseNullableNumber = (val: unknown): number | null => {
+    if (val === '' || val === undefined || val === null) {
+return null;
+}
+
+    const num = Number(val);
+
+    return isNaN(num) ? null : num;
+};
+
+const formatNumberToString = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') {
+return '';
+}
+
+    return String(val);
+};
+
+const formatDateForInput = (dateStr: unknown): string => {
+    if (!dateStr) {
+return '';
+}
+
+    return String(dateStr).split('T')[0].split(' ')[0];
+};
+
+// Photo & Cropper State
+const photoPreviewUrl = ref<string | null>(null);
+const photoPosition = ref({ x: 50, y: 50 });
+const photoZoom = ref(100);
+const photoCacheBuster = ref(Date.now());
+const isPhotoCropOpen = ref(false);
+const cropDrag = ref<{
+    startX: number;
+    startY: number;
+    x: number;
+    y: number;
+} | null>(null);
+
+const resetDocumentFields = () => {
+    form.new_document_file = null;
+    form.new_document_name = '';
+    form.document_type_id = null;
+};
+
+const clearPhotoPreviewUrl = () => {
+    if (photoPreviewUrl.value?.startsWith('blob:')) {
+        URL.revokeObjectURL(photoPreviewUrl.value);
+    }
+
+    photoPreviewUrl.value = null;
+};
+
+const resetPhotoField = () => {
+    form.photo_file = null;
+    clearPhotoPreviewUrl();
+    photoPosition.value = { x: 50, y: 50 };
+    photoZoom.value = 100;
+    photoCacheBuster.value = Date.now();
+    isPhotoCropOpen.value = false;
+};
+
+const handleDocumentFileChange = (event: Event) => {
+    form.new_document_file =
+        (event.target as HTMLInputElement).files?.[0] ?? null;
+};
+
+const createImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+
+const createCroppedPhotoFile = async (
+    file: File,
+    position: { x: number; y: number },
+    zoom: number
+): Promise<File | null> => {
+    const objectUrl = URL.createObjectURL(file);
+
+    try {
+        const img = await createImage(objectUrl);
+        const frameSize = 512;
+        const baseScale = Math.max(frameSize / img.naturalWidth, frameSize / img.naturalHeight);
+        const effectiveScale = baseScale * (zoom / 100);
+        const displayedWidth = img.naturalWidth * effectiveScale;
+        const displayedHeight = img.naturalHeight * effectiveScale;
+        const overflowX = Math.max(displayedWidth - frameSize, 0);
+        const overflowY = Math.max(displayedHeight - frameSize, 0);
+        const offsetX = (overflowX * position.x) / 100;
+        const offsetY = (overflowY * position.y) / 100;
+        const srcX = Math.max(0, Math.min(img.naturalWidth, offsetX / effectiveScale));
+        const srcY = Math.max(0, Math.min(img.naturalHeight, offsetY / effectiveScale));
+        const srcSize = Math.max(1, frameSize / effectiveScale);
+        const clampedSrcX = Math.round(Math.max(0, Math.min(img.naturalWidth - srcSize, srcX)));
+        const clampedSrcY = Math.round(Math.max(0, Math.min(img.naturalHeight - srcSize, srcY)));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = frameSize;
+        canvas.height = frameSize;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+return null;
+}
+
+        ctx.drawImage(
+            img,
+            clampedSrcX,
+            clampedSrcY,
+            srcSize,
+            srcSize,
+            0,
+            0,
+            frameSize,
+            frameSize
+        );
+
+        return await new Promise((resolve) => {
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) {
+                        resolve(null);
+
+                        return;
+                    }
+
+                    const croppedFile = new File([blob], file.name, {
+                        type: file.type || 'image/png',
+                    });
+                    resolve(croppedFile);
+                },
+                file.type || 'image/png',
+                0.92
+            );
+        });
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
+};
+
+const prepareCroppedPhoto = async (): Promise<void> => {
+    if (!form.photo_file) {
+return;
+}
+
+    const cropped = await createCroppedPhotoFile(
+        form.photo_file,
+        photoPosition.value,
+        photoZoom.value
+    );
+
+    if (cropped) {
+        form.photo_file = cropped;
+        clearPhotoPreviewUrl();
+        photoPreviewUrl.value = URL.createObjectURL(cropped);
+    }
+};
+
+const handlePhotoFileChange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    form.photo_file = file;
+    photoPosition.value = { x: 50, y: 50 };
+    clearPhotoPreviewUrl();
+
+    if (file) {
+        photoPreviewUrl.value = URL.createObjectURL(file);
+    }
+};
+
+const handleCropPointerDown = (event: PointerEvent) => {
+    cropDrag.value = {
+        startX: event.clientX,
+        startY: event.clientY,
+        x: photoPosition.value.x,
+        y: photoPosition.value.y,
+    };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+};
+
+const handleCropPointerMove = (event: PointerEvent) => {
+    if (!cropDrag.value) {
+return;
+}
+
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const dx = event.clientX - cropDrag.value.startX;
+    const dy = event.clientY - cropDrag.value.startY;
+    const deltaX = (dx / rect.width) * 100;
+    const deltaY = (dy / rect.height) * 100;
+    photoPosition.value.x = Math.min(100, Math.max(0, cropDrag.value.x + deltaX));
+    photoPosition.value.y = Math.min(100, Math.max(0, cropDrag.value.y + deltaY));
+};
+
+const handleCropPointerEnd = () => {
+    cropDrag.value = null;
+};
+
+const studentPhotoSrc = computed(() => {
+    if (photoPreviewUrl.value) {
+return photoPreviewUrl.value;
+}
+
+    if (!props.student?.photo_url) {
+return '';
+}
+
+    return `${props.student.photo_url}?t=${photoCacheBuster.value}`;
+});
+
+const documentPreviewUrl = (documentId: number) =>
+    props.student
+        ? previewDocument.url({
+              student: props.student.id,
+              document: documentId,
+          })
+        : '#';
+
+const isDocumentTypeExists = computed(() => {
+    if (!form.document_type_id || !props.student?.documents) {
+return false;
+}
+
+    return props.student.documents.some(
+        (doc) =>
+            parseNullableId(doc.document_type_id) ===
+            parseNullableId(form.document_type_id)
+    );
+});
+
+const filteredMajors = computed(
+    () =>
+        props.majors?.filter(
+            (major) => !form.school_id || major.school_id === form.school_id
+        ) ?? []
+);
+const filteredClassrooms = computed(
+    () =>
+        props.classrooms?.filter(
+            (classroom) =>
+                !form.major_id || classroom.major_id === form.major_id
+        ) ?? []
+);
+
+const handleSchoolChange = () => {
+    if (!filteredMajors.value.some((major) => major.id === form.major_id)) {
+        form.major_id = null;
+        form.classroom_id = null;
+    }
+};
+
+const handleMajorChange = () => {
+    if (
+        !filteredClassrooms.value.some(
+            (classroom) => classroom.id === form.classroom_id
+        )
+    ) {
+        form.classroom_id = null;
+    }
+};
+
+// Watcher Sync
+watch(
+    () => props.student,
+    (newStudent) => {
+        currentStepIndex.value = 0;
+
+        if (newStudent) {
+            photoCacheBuster.value = Date.now();
+            form.reset();
+            form.clearErrors();
+            form.school_id = parseNullableId(newStudent.school_id);
+            form.major_id = parseNullableId(newStudent.major_id);
+            form.classroom_id = parseNullableId(newStudent.classroom_id);
+            form.academic_year_id = parseNullableId(newStudent.academic_year_id);
+            form.gender_id = parseNullableId(newStudent.gender_id);
+            form.religion_id = parseNullableId(newStudent.religion_id);
+            form.student_status_id = parseNullableId(newStudent.student_status_id);
+            form.citizenship_id = parseNullableId(newStudent.citizenship_id);
+
+            form.nisn = newStudent.nisn || '';
+            form.nis = newStudent.nis || '';
+            form.full_name = newStudent.full_name || '';
+            form.nickname = newStudent.nickname || '';
+            form.birth_place = newStudent.birth_place || '';
+            form.birth_date = formatDateForInput(newStudent.birth_date);
+            form.phone = newStudent.phone || '';
+            form.email = newStudent.email || '';
+            form.address = newStudent.address || '';
+            form.postal_code = newStudent.postal_code || '';
+
+            resetDocumentFields();
+            resetPhotoField();
+
+            if (newStudent.family) {
+                form.family.father_name = newStudent.family.father_name || '';
+                form.family.father_occupation_id = parseNullableId(newStudent.family.father_occupation_id);
+                form.family.father_income_category_id = parseNullableId(newStudent.family.father_income_category_id);
+                form.family.father_phone = newStudent.family.father_phone || '';
+                form.family.mother_name = newStudent.family.mother_name || '';
+                form.family.mother_occupation_id = parseNullableId(newStudent.family.mother_occupation_id);
+                form.family.mother_income_category_id = parseNullableId(newStudent.family.mother_income_category_id);
+                form.family.mother_phone = newStudent.family.mother_phone || '';
+                form.family.guardian_name = newStudent.family.guardian_name || '';
+                form.family.guardian_occupation_id = parseNullableId(newStudent.family.guardian_occupation_id);
+                form.family.guardian_income_category_id = parseNullableId(newStudent.family.guardian_income_category_id);
+                form.family.guardian_phone = newStudent.family.guardian_phone || '';
+                form.family.emergency_contact_name = newStudent.family.emergency_contact_name || '';
+                form.family.emergency_contact_phone = newStudent.family.emergency_contact_phone || '';
+                form.family.relationship_type_id = parseNullableId(newStudent.family.relationship_type_id);
+                form.family.notes = newStudent.family.notes || '';
+            }
+
+            if (newStudent.health) {
+                form.health.blood_type_id = parseNullableId(newStudent.health.blood_type_id);
+                form.health.height = formatNumberToString(newStudent.health.height);
+                form.health.weight = formatNumberToString(newStudent.health.weight);
+                form.health.allergies = newStudent.health.allergies || '';
+                form.health.medical_history = newStudent.health.medical_history || '';
+                form.health.disabilities = newStudent.health.disabilities || '';
+                form.health.medications = newStudent.health.medications || '';
+                form.health.hospital = newStudent.health.hospital || '';
+                form.health.doctor = newStudent.health.doctor || '';
+                form.health.notes = newStudent.health.notes || '';
+            }
+
+            form.education_histories = newStudent.education_histories
+                ? newStudent.education_histories.map((edu) => ({
+                      ...edu,
+                      education_level_id: parseNullableId(edu.education_level_id),
+                      entry_year: formatNumberToString(edu.entry_year),
+                      graduation_year: formatNumberToString(edu.graduation_year),
+                      final_score: formatNumberToString(edu.final_score),
+                      is_graduated: edu.is_graduated ?? true,
+                  }))
+                : [];
+
+            form.socials = newStudent.socials
+                ? newStudent.socials.map((s) => ({
+                      ...s,
+                      social_platform_id: parseNullableId(s.social_platform_id),
+                  }))
+                : [];
+
+            form.achievements = newStudent.achievements
+                ? newStudent.achievements.map((ach) => ({
+                      ...ach,
+                      rank: formatNumberToString(ach.rank),
+                      achievement_date: formatDateForInput(ach.achievement_date),
+                  }))
+                : [];
+
+            form.violations = newStudent.violations
+                ? newStudent.violations.map((vio) => ({
+                      ...vio,
+                      point: formatNumberToString(vio.point),
+                      violation_date: formatDateForInput(vio.violation_date),
+                  }))
+                : [];
+        } else {
+            form.reset();
+            resetDocumentFields();
+        }
+    },
+    { immediate: true }
+);
+
+// Dynamic Handlers
+const addEducation = () => {
+    form.education_histories.push({
+        education_level_id: null,
         school_name: '',
         npsn: '',
+        address: '',
         entry_year: '',
         graduation_year: '',
         final_score: '',
-    },
-
-    // Step 5: Kondisi Kesehatan
-    health: {
-        height: '',
-        weight: '',
-        blood_type_id: 4,
-        allergies: '',
-        medical_history: '',
-        hospital: '',
-        doctor: '',
-    },
-
-    // Step 6: Upload Dokumen
-    documents: [] as Array<{ docType: string; file: File; fileName: string }>,
-});
-
-// --- PERSISTENCE / LOCAL STORAGE AUTO-SAVE LOGIC ---
-const STORAGE_KEY = 'ppdb_registration_draft_v1';
-
-const saveDraftToLocalStorage = () => {
-    try {
-        const dataToSave = {
-            currentStep: currentStep.value,
-            formData: {
-                ...form.data(),
-                documents: [], // Objek File tidak disimpan ke JSON, tersimpan secara terpisah
-            },
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (e) {
-        console.error('Gagal menyimpan draft:', e);
-    }
+        is_graduated: true,
+        notes: '',
+    });
 };
+const removeEducation = (index: number) => form.education_histories.splice(index, 1);
 
-const loadDraftFromLocalStorage = () => {
-    try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved) {
-            const parsed = JSON.parse(saved);
-
-            if (parsed.currentStep) {
-                currentStep.value = parsed.currentStep;
-            }
-
-            if (parsed.formData) {
-                Object.assign(form, parsed.formData);
-            }
-        }
-    } catch (e) {
-        console.error('Gagal memuat draft:', e);
-    }
+const addSocial = () => {
+    form.socials.push({ social_platform_id: null, username: '', url: '' });
 };
+const removeSocial = (index: number) => form.socials.splice(index, 1);
 
-const clearDraft = () => {
-    if (
-        confirm('Apakah Anda yakin ingin mengosongkan seluruh isian formulir?')
-    ) {
-        localStorage.removeItem(STORAGE_KEY);
-        form.reset();
-        currentStep.value = 1;
-        errorMessage.value = '';
-    }
+const addAchievement = () => {
+    form.achievements.push({
+        title: '',
+        organizer: '',
+        level: '',
+        category: '',
+        rank: '',
+        achievement_date: '',
+        description: '',
+    });
 };
+const removeAchievement = (index: number) => form.achievements.splice(index, 1);
 
-// Simpan draft secara otomatis tiap kali data form atau langkah berubah
-watch(form, () => saveDraftToLocalStorage(), { deep: true });
-watch(currentStep, () => saveDraftToLocalStorage());
-
-onMounted(() => {
-    loadDraftFromLocalStorage();
-});
-
-// --- FILTERED CLASSROOMS COMPUTED & WATCHER ---
-const filteredClassrooms = computed(() => {
-    return internalClassrooms.filter((c) => c.major_id === form.major_id);
-});
-
-watch(
-    () => form.major_id,
-    (newMajorId) => {
-        const validClassrooms = internalClassrooms.filter(
-            (c) => c.major_id === newMajorId,
-        );
-
-        if (validClassrooms.length > 0) {
-            // Hanya set ulang jika kelas saat ini tidak berada di jurusan baru
-            const currentClassValid = validClassrooms.some(
-                (c) => c.id === form.classroom_id,
-            );
-
-            if (!currentClassValid) {
-                form.classroom_id = validClassrooms[0].id;
-            }
-        }
-    },
-);
-
-// Computed untuk mengecek apakah seluruh dokumen wajib telah terunggah
-const isDocumentsComplete = computed(() => {
-    const uploadedTypes = form.documents.map((d) => d.docType);
-
-    return requiredDocTypes.every((type) => uploadedTypes.includes(type));
-});
-
-// Helper untuk mengecek status per dokumen
-const isDocUploaded = (docType: string) => {
-    return form.documents.some((d) => d.docType === docType);
-};
-
-// --- VALIDATION RULES PER STEP ---
-const isStepValid = computed(() => {
-    switch (currentStep.value) {
-        case 1: // Identitas Diri
-            return (
-                form.name.trim() !== '' &&
-                form.nis.trim() !== '' &&
-                form.nisn.trim().length === 10 &&
-                form.birth_place.trim() !== '' &&
-                form.birth_date !== '' &&
-                form.phone.trim() !== '' &&
-                form.address.trim() !== ''
-            );
-        case 2: // Kelas & Jurusan
-            return form.major_id > 0 && form.classroom_id > 0;
-        case 3: // Keluarga & Wali (Minimal Ibu/Ayah & Kontak Darurat)
-            return (
-                (form.family.father_name.trim() !== '' ||
-                    form.family.mother_name.trim() !== '') &&
-                form.family.emergency_contact_name.trim() !== '' &&
-                form.family.emergency_contact_phone.trim() !== ''
-            );
-        case 4: // Riwayat Sekolah
-            return (
-                form.education_history.school_name.trim() !== '' &&
-                form.education_history.graduation_year.trim() !== '' &&
-                form.education_history.final_score.trim() !== ''
-            );
-        case 5: // Kesehatan
-            return (
-                form.health.height.trim() !== '' &&
-                form.health.weight.trim() !== ''
-            );
-        case 6: // Dokumen Wajib
-            return isDocumentsComplete.value;
-        case 7: // Peninjauan Data
-            return true;
-        default:
-            return false;
-    }
-});
-
-const page = usePage();
-
-onMounted(() => {
-    // Jalankan auto-load draft yang sudah ada
-    loadDraftFromLocalStorage();
-
-    // Cek apakah user belum terautentikasi / belum login
-    // Sesuaikan `page.props.auth?.user` dengan struktur objek auth di Laravel Inertia Anda
-    if (!page.props.auth?.user) {
-        // Redirect paksa ke halaman login
-        router.visit('/login'); 
-    }
-});
-
-// --- HELPER FUNCTIONS ---
-const filterNumbers = (
-    event: Event,
-    obj: any,
-    key: string,
-    maxVal?: number,
-) => {
-    const target = event.target as HTMLInputElement;
-    let val = target.value.replace(/\D/g, '');
-
-    if (maxVal && Number(val) > maxVal) {
-        val = String(maxVal);
-    }
-
-    obj[key] = val;
-    target.value = val;
-};
-
-const formatScore = (event: Event, obj: any, key: string) => {
-    const target = event.target as HTMLInputElement;
-    let digits = target.value.replace(/\D/g, '');
-
-    if (digits.length > 4) {
-        digits = digits.slice(0, 4);
-    }
-
-    if (!digits) {
-        obj[key] = '';
-        target.value = '';
+const normalizeScoreInput = (edu: EducationHistoryForm) => {
+    if (!edu.final_score) {
+        edu.final_score = '';
 
         return;
     }
 
-    if (digits.length < 3) {
-        obj[key] = digits;
-        target.value = digits;
-    } else {
-        const integerPart = digits.slice(0, -2);
-        const decimalPart = digits.slice(-2);
-        let scoreVal = `${Number(integerPart)}.${decimalPart}`;
+    const numericOnly = String(edu.final_score).replace(/[^0-9]/g, '');
 
-        if (Number(scoreVal) > 100) {
-            scoreVal = '100.00';
-        }
+    if (!numericOnly) {
+        edu.final_score = '';
 
-        obj[key] = scoreVal;
-        target.value = scoreVal;
+        return;
     }
+
+    if (numericOnly.length <= 2) {
+        edu.final_score = Number(numericOnly).toString();
+
+        return;
+    }
+
+    const integerPart = numericOnly.slice(0, numericOnly.length - 2);
+    const decimalPart = numericOnly.slice(-2);
+    edu.final_score = Number(`${integerPart}.${decimalPart}`).toFixed(2);
 };
 
-const forceUppercase = (event: Event, obj: any, key: string) => {
-    const target = event.target as HTMLInputElement;
-    const uppercaseVal = target.value.toUpperCase();
-    obj[key] = uppercaseVal;
-    target.value = uppercaseVal;
+const addViolation = () => {
+    form.violations.push({ title: '', point: '', violation_date: '', description: '' });
+};
+const removeViolation = (index: number) => form.violations.splice(index, 1);
+
+const deleteDocument = (documentId: number) => {
+    if (!props.student || !confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
+return;
+}
+
+    router.delete(
+        destroyDocument.url({
+            student: props.student.id,
+            document: documentId,
+        }),
+        { preserveScroll: true }
+    );
 };
 
-const handleSpecificFileChange = (e: Event, docType: string) => {
-    const input = e.target as HTMLInputElement;
+const handleCancel = () => {
+    if (form.processing) {
+return;
+}
 
-    if (input.files && input.files[0]) {
-        const selectedFile = input.files[0];
-        const existingIndex = form.documents.findIndex(
-            (d) => d.docType === docType,
-        );
+    form.clearErrors();
+    currentStepIndex.value = 0;
+    resetDocumentFields();
+    resetPhotoField();
+    emit('close');
+};
 
-        if (existingIndex !== -1) {
-            form.documents.splice(existingIndex, 1);
+const handleSubmit = async () => {
+    if (isDocumentTypeExists.value && form.new_document_file) {
+        if (!confirm('Jenis dokumen ini sudah ada. Lanjutkan untuk mengganti dokumen lama?')) {
+            currentStepIndex.value = steps.findIndex((s) => s.id === 'documents');
+
+            return;
         }
+    }
 
-        form.documents.push({
-            docType,
-            file: selectedFile,
-            fileName: selectedFile.name,
+    form.transform((data) => ({
+        ...data,
+        school_id: parseNullableId(data.school_id),
+        major_id: parseNullableId(data.major_id),
+        classroom_id: parseNullableId(data.classroom_id),
+        academic_year_id: parseNullableId(data.academic_year_id),
+        gender_id: parseNullableId(data.gender_id),
+        religion_id: parseNullableId(data.religion_id),
+        student_status_id: parseNullableId(data.student_status_id),
+        citizenship_id: parseNullableId(data.citizenship_id),
+        document_type_id: parseNullableId(data.document_type_id),
+        birth_date: data.birth_date || null,
+
+        family: {
+            ...data.family,
+            father_occupation_id: parseNullableId(data.family.father_occupation_id),
+            father_income_category_id: parseNullableId(data.family.father_income_category_id),
+            mother_occupation_id: parseNullableId(data.family.mother_occupation_id),
+            mother_income_category_id: parseNullableId(data.family.mother_income_category_id),
+            guardian_occupation_id: parseNullableId(data.family.guardian_occupation_id),
+            guardian_income_category_id: parseNullableId(data.family.guardian_income_category_id),
+            relationship_type_id: parseNullableId(data.family.relationship_type_id),
+        },
+
+        health: {
+            ...data.health,
+            blood_type_id: parseNullableId(data.health.blood_type_id),
+            height: parseNullableNumber(data.health.height),
+            weight: parseNullableNumber(data.health.weight),
+        },
+
+        education_histories: data.education_histories.map((edu) => ({
+            ...edu,
+            education_level_id: parseNullableId(edu.education_level_id),
+            entry_year: parseNullableNumber(edu.entry_year),
+            graduation_year: parseNullableNumber(edu.graduation_year),
+            final_score: edu.final_score !== '' ? edu.final_score : null,
+        })),
+
+        socials: data.socials.map((soc) => ({
+            ...soc,
+            social_platform_id: parseNullableId(soc.social_platform_id),
+        })),
+
+        achievements: data.achievements.map((ach) => ({
+            ...ach,
+            rank: parseNullableNumber(ach.rank),
+            achievement_date: ach.achievement_date || null,
+        })),
+
+        violations: data.violations.map((vio) => ({
+            ...vio,
+            point: parseNullableNumber(vio.point),
+            violation_date: vio.violation_date || null,
+        })),
+    }));
+
+    if (form.photo_file) {
+        await prepareCroppedPhoto();
+    }
+
+    if (props.student && props.student.id) {
+        if (form.new_document_file || form.photo_file) {
+            form.post(updateStudent.url(props.student.id), {
+                headers: { 'X-HTTP-Method-Override': 'PUT' },
+                onSuccess: () => {
+                    resetDocumentFields();
+                    resetPhotoField();
+                    emit('saved');
+                },
+            });
+        } else {
+            form.put(updateStudent.url(props.student.id), {
+                onSuccess: () => {
+                    resetDocumentFields();
+                    resetPhotoField();
+                    emit('saved');
+                },
+            });
+        }
+    } else {
+        form.post(storeStudent.url(), {
+            onSuccess: () => {
+                resetDocumentFields();
+                resetPhotoField();
+                emit('saved');
+            },
         });
     }
 };
 
-const getDocumentName = (docType: string) => {
-    const found = form.documents.find((d) => d.docType === docType);
-
-    return found ? found.fileName : '';
-};
-
-// Review Helpers
-const getMajorName = (id: number) =>
-    internalMajors.find((m) => m.id === id)?.name || '-';
-const getClassroomName = (id: number) =>
-    internalClassrooms.find((c) => c.id === id)?.name || '-';
-const getBloodTypeName = (id: number) => ['A', 'B', 'AB', 'O'][id - 1] || '-';
-
-// Navigation
-const nextStep = () => {
-    if (!isStepValid.value) {
-        errorMessage.value =
-            'Harap lengkapi seluruh bidang wajib (*) pada langkah ini sebelum melanjutkan.';
-
-        return;
-    }
-
-    errorMessage.value = '';
-
-    if (currentStep.value < totalSteps) {
-        currentStep.value++;
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-const prevStep = () => {
-    errorMessage.value = '';
-
-    if (currentStep.value > 1) {
-        currentStep.value--;
-    }
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-const submitRegistration = () => {
-    if (!isDocumentsComplete.value) {
-        errorMessage.value = 'Semua berkas dokumen wajib harus diunggah!';
-
-        return;
-    }
-
-    form.post('/public-register', {
-        onSuccess: () => {
-            localStorage.removeItem(STORAGE_KEY);
-        },
-    });
-};
+const inputClass =
+    'h-10 rounded-lg border-neutral-200 bg-neutral-50/50 text-xs focus:bg-white focus:border-neutral-900 focus:ring-0 dark:border-neutral-800 dark:bg-neutral-900/50 dark:focus:border-white dark:focus:bg-black transition-all';
+const selectClass =
+    'h-10 w-full rounded-lg border border-neutral-200 bg-neutral-50/50 px-3 text-xs focus:bg-white focus:border-neutral-900 focus:ring-0 dark:border-neutral-800 dark:bg-neutral-900/50 dark:focus:border-white dark:focus:bg-black transition-all outline-none';
+const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider mb-1 block';
 </script>
 
 <template>
-    <Head title="Pendaftaran Siswa Baru" />
-
-    <div class="min-h-screen bg-white font-sans text-black antialiased">
-        <header
-            class="sticky top-0 z-50 flex items-center justify-between border-b border-black/10 bg-white/90 px-8 py-6 backdrop-blur-md"
-        >
-            <div class="flex items-center gap-3">
-                <div class="rounded-md bg-black p-1.5 text-white">
-                    <GraduationCap class="size-5" />
+    <div class="min-h-screen bg-neutral-50/60 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans flex flex-col antialiased">
+        <header class="sticky top-0 z-30 border-b border-neutral-200/80 bg-white/80 backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/80">
+            <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-900 text-white dark:bg-white dark:text-black">
+                        <Sparkles class="h-4 w-4" />
+                    </div>
+                    <div>
+                        <h1 class="text-base font-bold tracking-tight">
+                            {{ props.student ? 'Edit Student Profile' : 'New Student Registration' }}
+                        </h1>
+                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400">
+                            Lengkapi seluruh data sesuai dokumen resmi.
+                        </p>
+                    </div>
                 </div>
-                <span class="text-xl font-black tracking-tight uppercase"
-                    >Sistem <span class="font-light">Pendaftaran</span></span
-                >
+                <div class="hidden sm:block text-right">
+                    <span class="text-xs font-semibold text-neutral-400">Step {{ currentStepIndex + 1 }} of {{ steps.length }}</span>
+                    <p class="text-xs font-bold text-neutral-900 dark:text-white">{{ currentStep.label }}</p>
+                </div>
             </div>
-
-            <button
-                @click="clearDraft"
-                type="button"
-                title="Kosongkan seluruh isian form"
-                class="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:border-red-300 hover:text-red-600"
-            >
-                <RotateCcw class="size-3.5" />
-                <span>Reset Form</span>
-            </button>
         </header>
 
-        <main class="mx-auto max-w-4xl px-6 py-12">
-            <div class="mb-6">
-                <div class="mb-3 flex items-center justify-between">
-                    <span
-                        class="text-[10px] font-bold tracking-widest text-neutral-500 uppercase"
-                        >Langkah 0{{ currentStep }} / 0{{ totalSteps }}</span
+        <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 flex flex-col gap-6">
+            <div class="rounded-2xl border border-neutral-200/80 bg-white p-2 shadow-sm dark:border-neutral-800/80 dark:bg-neutral-900">
+                <div class="flex items-center justify-between overflow-x-auto gap-1 no-scrollbar p-1">
+                    <button
+                        v-for="(step, idx) in steps"
+                        :key="step.id"
+                        type="button"
+                        @click="goToStep(idx)"
+                        class="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-all shrink-0"
+                        :class="[
+                            idx === currentStepIndex
+                                ? 'bg-neutral-900 text-white shadow-sm dark:bg-white dark:text-black font-semibold'
+                                : idx < currentStepIndex
+                                ? 'text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800'
+                                : 'text-neutral-400 hover:bg-neutral-50 dark:text-neutral-600 dark:hover:bg-neutral-800/50'
+                        ]"
                     >
-                    <span
-                        class="font-mono text-[10px] font-bold tracking-widest text-black uppercase"
-                        >{{ steps[currentStep - 1].name }}</span
-                    >
+                        <component
+                            :is="idx < currentStepIndex ? Check : step.icon"
+                            class="h-3.5 w-3.5"
+                            :class="idx === currentStepIndex ? 'text-white dark:text-black' : ''"
+                        />
+                        <span>{{ step.label }}</span>
+                    </button>
                 </div>
-                <div
-                    class="h-1.5 w-full overflow-hidden rounded-full bg-neutral-200"
-                >
+                <div class="mt-2 h-1 w-full rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
                     <div
-                        class="h-full bg-black transition-all duration-500 ease-in-out"
-                        :style="{
-                            width: `${(currentStep / totalSteps) * 100}%`,
-                        }"
+                        class="h-full bg-neutral-900 dark:bg-white transition-all duration-300"
+                        :style="{ width: `${((currentStepIndex + 1) / steps.length) * 100}%` }"
                     ></div>
                 </div>
             </div>
 
-            <div
-                v-if="errorMessage"
-                class="mb-6 flex animate-in items-center gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-700"
-            >
-                <AlertCircle class="size-4 shrink-0" />
-                <span>{{ errorMessage }}</span>
-            </div>
-
-            <div class="min-h-[420px]">
-                <div
-                    v-if="currentStep === 1"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <UserCheck class="size-3.5 text-black" /> I.
-                            Informasi Dasar & Identitas Pokok Murid
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Nama Lengkap
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    v-model="form.name"
-                                    type="text"
-                                    placeholder="Masukkan nama sesuai ijazah"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                    :disabled="form.is_locked"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >NIS
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.nis"
-                                    @input="
-                                        (e) => filterNumbers(e, form, 'nis')
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="6"
-                                    placeholder="Contoh: 22001"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                    :disabled="form.is_locked"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >NISN (10 Digit)
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.nisn"
-                                    @input="
-                                        (e) => filterNumbers(e, form, 'nisn')
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="10"
-                                    placeholder="0071234567"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                    :disabled="form.is_locked"
-                                />
-                            </div>
+            <form @submit.prevent="handleSubmit" class="rounded-2xl border border-neutral-200/80 bg-white shadow-sm dark:border-neutral-800/80 dark:bg-neutral-900 flex flex-col flex-1 overflow-hidden">
+                <div class="p-6 sm:p-8 flex-1">
+                    
+                    <div v-show="currentStep.id === 'biodata'" class="space-y-6">
+                        <div class="border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <User class="h-4 w-4 text-neutral-500" /> Informasi Pribadi
+                            </h2>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Tempat Lahir
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    v-model="form.birth_place"
-                                    type="text"
-                                    placeholder="Kota Lahir"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Tanggal Lahir
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    v-model="form.birth_date"
-                                    type="date"
-                                    maxlength="8"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Jenis Kelamin
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <select
-                                    v-model="form.gender_id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs text-black focus:border-black focus:outline-none"
-                                >
-                                    <option
-                                        v-for="g in internalGenders"
-                                        :key="g.id"
-                                        :value="g.id"
-                                    >
-                                        {{ g.name }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Agama
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <select
-                                    v-model="form.religion_id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs text-black focus:border-black focus:outline-none"
-                                >
-                                    <option
-                                        v-for="r in internalReligions"
-                                        :key="r.id"
-                                        :value="r.id"
-                                    >
-                                        {{ r.name }}
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Email Akun Murid</label
-                                >
-                                <input
-                                    v-model="form.email"
-                                    type="email"
-                                    placeholder="nama@student.sch.id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Nomor HP/WA
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.phone"
-                                    @input="
-                                        (e) => filterNumbers(e, form, 'phone')
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="12"
-                                    placeholder="08XXXXXXXXXX"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div class="space-y-1">
-                                <label
-                                    class="flex items-center gap-1 text-xs font-bold text-neutral-700"
-                                >
-                                    <Instagram class="size-3" /> URL Instagram
-                                </label>
-                                <input
-                                    v-model="form.instagram_url"
-                                    type="url"
-                                    placeholder="https://instagram.com/username"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="flex items-center gap-1 text-xs font-bold text-neutral-700"
-                                >
-                                    <Globe class="size-3" /> URL Media Sosial
-                                    Lainnya
-                                </label>
-                                <input
-                                    v-model="form.linkedin_url"
-                                    type="url"
-                                    placeholder="https://linkedin.com/in/username"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="space-y-1 pt-1">
-                            <label class="text-xs font-bold text-neutral-700"
-                                >Alamat Rumah Sesuai KK
-                                <span class="text-red-500">*</span></label
-                            >
-                            <textarea
-                                v-model="form.address"
-                                rows="2"
-                                placeholder="Tuliskan jalan, RT/RW, Kelurahan, Kecamatan, dan Kota/Kabupaten"
-                                class="w-full resize-none rounded-lg border border-neutral-300 bg-neutral-50 p-2 text-xs text-black focus:border-black focus:outline-none"
-                            ></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="currentStep === 2"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3 pt-2">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <School class="size-3.5 text-black" /> II. Pemetaan
-                            Relasi Kelas & Kompetensi Keahlian
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Kompetensi Keahlian / Jurusan
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <select
-                                    v-model="form.major_id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs text-black focus:border-black focus:outline-none"
-                                    :disabled="form.is_locked"
-                                >
-                                    <option
-                                        v-for="m in internalMajors"
-                                        :key="m.id"
-                                        :value="m.id"
-                                    >
-                                        [{{ m.code }}] {{ m.name }}
-                                    </option>
-                                </select>
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Penempatan Kelas
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <select
-                                    v-model="form.classroom_id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs text-black focus:border-black focus:outline-none"
-                                    :disabled="form.is_locked"
-                                >
-                                    <option
-                                        v-for="c in filteredClassrooms"
-                                        :key="c.id"
-                                        :value="c.id"
-                                    >
-                                        {{ c.name }}
-                                    </option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="currentStep === 3"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3 pt-2">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <Users class="size-3.5 text-black" /> III. Entitas
-                            Hubungan Keluarga & Orang Tua
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div
-                                class="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3"
-                            >
-                                <span
-                                    class="block text-[10px] font-bold tracking-wide text-neutral-500 uppercase"
-                                    >Ayah Kandung</span
-                                >
-                                <div class="space-y-1">
-                                    <label
-                                        class="text-xs font-medium text-neutral-700"
-                                        >Nama Lengkap Ayah</label
-                                    >
-                                    <input
-                                        v-model="form.family.father_name"
-                                        type="text"
-                                        placeholder="Nama ayah kandung"
-                                        class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-xs focus:border-black focus:outline-none"
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label
-                                        class="text-xs font-medium text-neutral-700"
-                                        >No. Telp Ayah</label
-                                    >
-                                    <input
-                                        :value="form.family.father_phone"
-                                        @input="
-                                            (e) =>
-                                                filterNumbers(
-                                                    e,
-                                                    form.family,
-                                                    'father_phone',
-                                                )
-                                        "
-                                        type="text"
-                                        inputmode="numeric"
-                                        maxlength="12"
-                                        placeholder="08XXXXXXXXXX"
-                                        class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                    />
+                        <div class="flex flex-col sm:flex-row items-center gap-6 rounded-xl border border-neutral-100 bg-neutral-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-950/40">
+                            <div class="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+                                <img v-if="studentPhotoSrc" :src="studentPhotoSrc" class="h-full w-full object-cover" />
+                                <div v-else class="flex h-full w-full flex-col items-center justify-center text-neutral-400">
+                                    <User class="h-8 w-8 stroke-[1.5]" />
                                 </div>
                             </div>
-
-                            <div
-                                class="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3"
-                            >
-                                <span
-                                    class="block text-[10px] font-bold tracking-wide text-neutral-500 uppercase"
-                                    >Ibu Kandung</span
-                                >
-                                <div class="space-y-1">
-                                    <label
-                                        class="text-xs font-medium text-neutral-700"
-                                        >Nama Lengkap Ibu</label
-                                    >
-                                    <input
-                                        v-model="form.family.mother_name"
-                                        type="text"
-                                        placeholder="Nama ibu kandung"
-                                        class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-xs focus:border-black focus:outline-none"
-                                    />
-                                </div>
-                                <div class="space-y-1">
-                                    <label
-                                        class="text-xs font-medium text-neutral-700"
-                                        >No. Telp Ibu</label
-                                    >
-                                    <input
-                                        :value="form.family.mother_phone"
-                                        @input="
-                                            (e) =>
-                                                filterNumbers(
-                                                    e,
-                                                    form.family,
-                                                    'mother_phone',
-                                                )
-                                        "
-                                        type="text"
-                                        inputmode="numeric"
-                                        maxlength="12"
-                                        placeholder="08XXXXXXXXXX"
-                                        class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Nama Wali Murid (Opsional)</label
-                                >
-                                <input
-                                    v-model="form.family.guardian_name"
-                                    type="text"
-                                    placeholder="Nama wali"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >No. Telp Wali Murid</label
-                                >
-                                <input
-                                    :value="form.family.guardian_phone"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.family,
-                                                'guardian_phone',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="12"
-                                    placeholder="08XXXXXXXXXX"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <div
-                            class="mt-3 grid grid-cols-1 gap-3 rounded-xl border border-neutral-300 bg-neutral-100 p-3 md:grid-cols-2"
-                        >
-                            <div class="space-y-1">
-                                <label class="text-xs font-bold text-black"
-                                    >Kontak Darurat
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    v-model="form.family.emergency_contact_name"
-                                    type="text"
-                                    placeholder="Contoh: Paman / Kakak Kandung"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label class="text-xs font-bold text-black"
-                                    >No. HP Darurat
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.family.emergency_contact_phone"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.family,
-                                                'emergency_contact_phone',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="12"
-                                    placeholder="08XXXXXXXXXX"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="currentStep === 4"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3 pt-2">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <ClipboardList class="size-3.5 text-black" /> IV.
-                            Riwayat Pendidikan Sebelumnya
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div class="space-y-1 md:col-span-2">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Nama Sekolah Asal
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.education_history.school_name"
-                                    @input="
-                                        (e) =>
-                                            forceUppercase(
-                                                e,
-                                                form.education_history,
-                                                'school_name',
-                                            )
-                                    "
-                                    type="text"
-                                    placeholder="SMPN 1 KOTABARU"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs uppercase focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >NPSN Asal Sekolah</label
-                                >
-                                <input
-                                    :value="form.education_history.npsn"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.education_history,
-                                                'npsn',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="8"
-                                    placeholder="30102040"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Tahun Masuk</label
-                                >
-                                <input
-                                    :value="form.education_history.entry_year"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.education_history,
-                                                'entry_year',
-                                                currentYear,
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="4"
-                                    :placeholder="`Maks ${currentYear}`"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Tahun Lulus
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="
-                                        form.education_history.graduation_year
-                                    "
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.education_history,
-                                                'graduation_year',
-                                                currentYear,
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="4"
-                                    :placeholder="`Maks ${currentYear}`"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Nilai Ujian Akhir
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.education_history.final_score"
-                                    @input="
-                                        (e) =>
-                                            formatScore(
-                                                e,
-                                                form.education_history,
-                                                'final_score',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    placeholder="Ketik 8520 -> 85.20"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="currentStep === 5"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3 pt-2">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <Heart class="size-3.5 text-black" /> V. Informasi
-                            Kondisi Kesehatan Fisik & Medis
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Tinggi Badan (cm)
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.health.height"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.health,
-                                                'height',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="3"
-                                    placeholder="165"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Berat Badan (kg)
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <input
-                                    :value="form.health.weight"
-                                    @input="
-                                        (e) =>
-                                            filterNumbers(
-                                                e,
-                                                form.health,
-                                                'weight',
-                                            )
-                                    "
-                                    type="text"
-                                    inputmode="numeric"
-                                    maxlength="3"
-                                    placeholder="55"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 font-mono text-xs focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Golongan Darah
-                                    <span class="text-red-500">*</span></label
-                                >
-                                <select
-                                    v-model="form.health.blood_type_id"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2 text-xs text-black focus:border-black focus:outline-none"
-                                >
-                                    <option :value="1">A</option>
-                                    <option :value="2">B</option>
-                                    <option :value="3">AB</option>
-                                    <option :value="4">O</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Daftar Kontraindikasi Alergi</label
-                                >
-                                <input
-                                    :value="form.health.allergies"
-                                    @input="
-                                        (e) =>
-                                            forceUppercase(
-                                                e,
-                                                form.health,
-                                                'allergies',
-                                            )
-                                    "
-                                    type="text"
-                                    placeholder="TIDAK ADA"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs uppercase focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Riwayat Penyakit Bawaan</label
-                                >
-                                <input
-                                    :value="form.health.medical_history"
-                                    @input="
-                                        (e) =>
-                                            forceUppercase(
-                                                e,
-                                                form.health,
-                                                'medical_history',
-                                            )
-                                    "
-                                    type="text"
-                                    placeholder="TIDAK ADA"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-neutral-50 px-2.5 text-xs uppercase focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-
-                        <div
-                            class="grid grid-cols-1 gap-3 rounded-xl border border-neutral-300 bg-neutral-50 p-3 md:grid-cols-2"
-                        >
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Fasilitas Kesehatan / RSUD Rujukan</label
-                                >
-                                <input
-                                    :value="form.health.hospital"
-                                    @input="
-                                        (e) =>
-                                            forceUppercase(
-                                                e,
-                                                form.health,
-                                                'hospital',
-                                            )
-                                    "
-                                    type="text"
-                                    placeholder="RSUD KOTA SEHAT"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-xs uppercase focus:border-black focus:outline-none"
-                                />
-                            </div>
-                            <div class="space-y-1">
-                                <label
-                                    class="text-xs font-bold text-neutral-700"
-                                    >Dokter Penanggung Jawab</label
-                                >
-                                <input
-                                    :value="form.health.doctor"
-                                    @input="
-                                        (e) =>
-                                            forceUppercase(
-                                                e,
-                                                form.health,
-                                                'doctor',
-                                            )
-                                    "
-                                    type="text"
-                                    placeholder="DR. BUDI SANTOSO"
-                                    class="h-8 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-xs uppercase focus:border-black focus:outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    v-if="currentStep === 6"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div class="space-y-3 pt-2">
-                        <h3
-                            class="flex items-center gap-1 border-b border-black/10 pb-1 font-bold text-black"
-                        >
-                            <FileArchive class="size-3.5 text-black" /> VI.
-                            Unggah Dokumen Pendukung Resmi
-                        </h3>
-                        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div
-                                v-for="doc in allDocTypes"
-                                :key="doc.name"
-                                class="flex flex-col justify-center gap-2 rounded-xl border border-dashed border-neutral-400 bg-neutral-50 p-3"
-                            >
-                                <div class="flex items-center justify-between">
-                                    <span
-                                        class="text-[10px] font-bold text-black"
-                                    >
-                                        {{ doc.name }}
-                                        <span
-                                            v-if="doc.required"
-                                            class="text-red-500"
-                                            >*</span
-                                        >
-                                        <span
-                                            v-else
-                                            class="font-normal text-neutral-400"
-                                        >
-                                            (Opsional)</span
-                                        >
-                                    </span>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <label
-                                        :class="[
-                                            'cursor-pointer rounded-lg bg-black px-2.5 py-1.5 text-[9px] font-semibold whitespace-nowrap text-white shadow-sm transition hover:bg-neutral-800',
-                                            form.is_locked
-                                                ? 'cursor-not-allowed opacity-50'
-                                                : '',
-                                        ]"
-                                    >
-                                        Pilih Berkas
-                                        <input
-                                            type="file"
-                                            class="hidden"
-                                            accept=".pdf,.jpg,.jpeg,.png"
-                                            @change="
-                                                (e) =>
-                                                    handleSpecificFileChange(
-                                                        e,
-                                                        doc.name,
-                                                    )
-                                            "
-                                            :disabled="form.is_locked"
-                                        />
+                            <div class="flex-1 space-y-2 text-center sm:text-left">
+                                <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Foto Pas Siswa</h3>
+                                <p class="text-[11px] text-neutral-500">Format PNG/JPG, Maksimal 2MB. Disarankan rasio 3:4 atau 1:1.</p>
+                                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
+                                        <UploadCloud class="h-3.5 w-3.5" />
+                                        <span>Pilih Foto</span>
+                                        <input type="file" accept="image/*" class="hidden" @change="handlePhotoFileChange" />
                                     </label>
-                                    <span
-                                        class="max-w-[150px] truncate text-[9px] text-neutral-600"
-                                        :title="getDocumentName(doc.name)"
-                                    >
-                                        {{
-                                            getDocumentName(doc.name) ||
-                                            'Belum ada berkas'
-                                        }}
-                                    </span>
+                                    <Button v-if="studentPhotoSrc" type="button" variant="outline" size="sm" class="h-8 text-xs rounded-lg" @click="isPhotoCropOpen = true">
+                                        <Crop class="mr-1 h-3.5 w-3.5" /> Atur Posisi
+                                    </Button>
+                                    <Button v-if="form.photo_file" type="button" variant="ghost" size="sm" class="h-8 text-xs text-red-500 hover:bg-red-50 hover:text-red-600 rounded-lg" @click="resetPhotoField">
+                                        Reset
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label :class="labelClass">Nama Lengkap <span class="text-red-500">*</span></label>
+                                <Input v-model="form.full_name" placeholder="Nama Lengkap Siswa" :class="inputClass" required />
+                                <span v-if="form.full_name" class="text-[11px] text-red-500 mt-1 block">{{ form.errors.full_name }}</span>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Nama Panggilan</label>
+                                <Input v-model="form.nickname" placeholder="Nama Panggilan" :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">NISN <span class="text-red-500">*</span></label>
+                                <Input type="text" inputmode="numeric" maxlength="10" v-model="form.nisn" placeholder="00xxxxxxxx" :class="inputClass" required />
+                                <span v-if="form.nisn" class="text-[11px] text-red-500 mt-1 block">{{ form.errors.nisn }}</span>
+                            </div>
+                            <div>
+                                <label :class="labelClass">NIS</label>
+                                <Input type="text" inputmode="numeric" v-model="form.nis" placeholder="Nomor Induk Sekolah" :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">Jenis Kelamin <span class="text-red-500">*</span></label>
+                                <select v-model="form.gender_id" :class="selectClass" required>
+                                    <option :value="null">Pilih Jenis Kelamin</option>
+                                    <option v-for="g in props.genders" :key="g.id" :value="g.id">{{ g.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Kewarganegaraan</label>
+                                <select v-model="form.citizenship_id" :class="selectClass">
+                                    <option :value="null">Pilih Kewarganegaraan</option>
+                                    <option v-for="c in props.citizenships" :key="c.id" :value="c.id">{{ c.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Agama</label>
+                                <select v-model="form.religion_id" :class="selectClass">
+                                    <option :value="null">Pilih Agama</option>
+                                    <option v-for="r in props.religions" :key="r.id" :value="r.id">{{ r.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Tempat Lahir</label>
+                                <Input v-model="form.birth_place" placeholder="Kota Lahir" :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">Tanggal Lahir</label>
+                                <Input type="date" v-model="form.birth_date" :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">Sekolah <span class="text-red-500">*</span></label>
+                                <select v-model="form.school_id" :class="selectClass" required @change="handleSchoolChange">
+                                    <option :value="null">Pilih Sekolah</option>
+                                    <option v-for="s in props.schools" :key="s.id" :value="s.id">{{ s.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Jurusan</label>
+                                <select v-model="form.major_id" :class="selectClass" @change="handleMajorChange">
+                                    <option :value="null">Pilih Jurusan</option>
+                                    <option v-for="m in filteredMajors" :key="m.id" :value="m.id">{{ m.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Kelas</label>
+                                <select v-model="form.classroom_id" :class="selectClass">
+                                    <option :value="null">Pilih Kelas</option>
+                                    <option v-for="c in filteredClassrooms" :key="c.id" :value="c.id">{{ c.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Tahun Ajaran <span class="text-red-500">*</span></label>
+                                <select v-model="form.academic_year_id" :class="selectClass" required>
+                                    <option :value="null">Pilih Tahun Ajaran</option>
+                                    <option v-for="ay in props.academicYears" :key="ay.id" :value="ay.id">{{ ay.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">Status Siswa</label>
+                                <select v-model="form.student_status_id" :class="selectClass">
+                                    <option :value="null">Pilih Status</option>
+                                    <option v-for="st in props.studentStatuses" :key="st.id" :value="st.id">{{ st.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label :class="labelClass">No. WhatsApp / Telepon</label>
+                                <Input type="text" inputmode="tel" v-model="form.phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">Email</label>
+                                <Input type="email" v-model="form.email" placeholder="siswa@sekolah.sch.id" :class="inputClass" />
+                            </div>
+                            <div class="sm:col-span-2">
+                                <label :class="labelClass">Alamat Lengkap</label>
+                                <Input v-model="form.address" placeholder="Jl. Raya No. 1..." :class="inputClass" />
+                            </div>
+                            <div>
+                                <label :class="labelClass">Kode Pos</label>
+                                <Input type="text" inputmode="numeric" v-model="form.postal_code" placeholder="xxxxx" :class="inputClass" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="currentStep.id === 'family'" class="space-y-6">
+                        <div class="border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <Users class="h-4 w-4 text-neutral-500" /> Data Orang Tua & Wali
+                            </h2>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Data Ayah Kandung</h3>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label :class="labelClass">Nama Ayah<span class="text-red-500">*</span></label>
+                                    <Input v-model="form.family.father_name" placeholder="Nama Ayah" :class="inputClass" required />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Pekerjaan</label>
+                                    <select v-model="form.family.father_occupation_id" :class="selectClass">
+                                        <option :value="null">Pilih Pekerjaan</option>
+                                        <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Penghasilan</label>
+                                    <select v-model="form.family.father_income_category_id" :class="selectClass">
+                                        <option :value="null">Pilih Penghasilan</option>
+                                        <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">No HP Ayah</label>
+                                    <Input type="text" inputmode="tel" v-model="form.family.father_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Data Ibu Kandung</h3>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label :class="labelClass">Nama Ibu<span class="text-red-500">*</span></label>
+                                    <Input v-model="form.family.mother_name" placeholder="Nama Ibu" :class="inputClass" required />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Pekerjaan</label>
+                                    <select v-model="form.family.mother_occupation_id" :class="selectClass">
+                                        <option :value="null">Pilih Pekerjaan</option>
+                                        <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Penghasilan</label>
+                                    <select v-model="form.family.mother_income_category_id" :class="selectClass">
+                                        <option :value="null">Pilih Penghasilan</option>
+                                        <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">No HP Ibu</label>
+                                    <Input type="text" inputmode="tel" v-model="form.family.mother_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Data Wali (Opsional)</h3>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label :class="labelClass">Nama Wali</label>
+                                    <Input v-model="form.family.guardian_name" placeholder="Nama Wali" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Pekerjaan</label>
+                                    <select v-model="form.family.guardian_occupation_id" :class="selectClass">
+                                        <option :value="null">Pilih Pekerjaan</option>
+                                        <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Penghasilan</label>
+                                    <select v-model="form.family.guardian_income_category_id" :class="selectClass">
+                                        <option :value="null">Pilih Penghasilan</option>
+                                        <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">No HP Wali</label>
+                                    <Input type="text" inputmode="tel" v-model="form.family.guardian_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Kontak Darurat</h3>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <div>
+                                    <label :class="labelClass">Nama Kontak Darurat<span class="text-red-500">*</span></label>
+                                    <Input v-model="form.family.emergency_contact_name" placeholder="Nama Penanggung Jawab" :class="inputClass" required />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">No HP Darurat</label>
+                                    <Input type="text" inputmode="tel" v-model="form.family.emergency_contact_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Hubungan</label>
+                                    <select v-model="form.family.relationship_type_id" :class="selectClass">
+                                        <option :value="null">Pilih Hubungan</option>
+                                        <option v-for="rel in props.relationshipTypes" :key="rel.id" :value="rel.id">{{ rel.name }}</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div
-                    v-if="currentStep === 7"
-                    class="animate-in space-y-6 duration-500 fade-in"
-                >
-                    <div
-                        class="space-y-4 rounded-2xl border border-neutral-300 bg-neutral-50 p-5"
-                    >
-                        <h4
-                            class="flex items-center gap-1.5 border-b border-black/10 pb-2 text-sm font-bold text-black"
-                        >
-                            <CheckCircle2 class="size-4 text-black" />
-                            Peninjauan Ringkasan Data Penuh
-                        </h4>
-
-                        <div
-                            class="grid grid-cols-1 gap-4 text-xs md:grid-cols-2"
-                        >
-                            <div class="space-y-1">
-                                <span
-                                    class="text-[10px] font-bold text-neutral-500 uppercase"
-                                    >I. Identitas</span
-                                >
-                                <p>
-                                    <strong>Nama:</strong>
-                                    {{ form.name || '-' }}
-                                </p>
-                                <p>
-                                    <strong>NIS / NISN:</strong>
-                                    {{ form.nis || '-' }} /
-                                    {{ form.nisn || '-' }}
-                                </p>
-                                <p>
-                                    <strong>TTL:</strong>
-                                    {{ form.birth_place || '-' }},
-                                    {{ form.birth_date || '-' }}
-                                </p>
-                                <p>
-                                    <strong>Kontak:</strong>
-                                    {{ form.phone || '-' }} |
-                                    {{ form.email || '-' }}
-                                </p>
-                                <p class="truncate">
-                                    <strong>Alamat:</strong>
-                                    {{ form.address || '-' }}
-                                </p>
+                    <div v-show="currentStep.id === 'health'" class="space-y-6">
+                        <div class="border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <HeartPulse class="h-4 w-4 text-neutral-500" /> Catatan Kesehatan
+                            </h2>
+                        </div>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div>
+                                <label :class="labelClass">Golongan Darah</label>
+                                <select v-model="form.health.blood_type_id" :class="selectClass">
+                                    <option :value="null">Pilih Golongan Darah</option>
+                                    <option v-for="bt in props.bloodTypes" :key="bt.id" :value="bt.id">{{ bt.name }}</option>
+                                </select>
                             </div>
-
-                            <div class="space-y-1">
-                                <span
-                                    class="text-[10px] font-bold text-neutral-500 uppercase"
-                                    >II. Pemetaan Kelas</span
-                                >
-                                <p>
-                                    <strong>Jurusan:</strong>
-                                    {{ getMajorName(form.major_id) }}
-                                </p>
-                                <p>
-                                    <strong>Kelas:</strong>
-                                    {{ getClassroomName(form.classroom_id) }}
-                                </p>
+                            <div>
+                                <label :class="labelClass">Tinggi Badan (cm)</label>
+                                <Input type="text" inputmode="numeric" v-model="form.health.height" placeholder="170" :class="inputClass" />
                             </div>
-
-                            <div class="space-y-1">
-                                <span
-                                    class="text-[10px] font-bold text-neutral-500 uppercase"
-                                    >III. Keluarga</span
-                                >
-                                <p>
-                                    <strong>Ayah:</strong>
-                                    {{ form.family.father_name || '-' }} ({{
-                                        form.family.father_phone || '-'
-                                    }})
-                                </p>
-                                <p>
-                                    <strong>Ibu:</strong>
-                                    {{ form.family.mother_name || '-' }} ({{
-                                        form.family.mother_phone || '-'
-                                    }})
-                                </p>
-                                <p>
-                                    <strong>Darurat:</strong>
-                                    {{
-                                        form.family.emergency_contact_name ||
-                                        '-'
-                                    }}
-                                    ({{
-                                        form.family.emergency_contact_phone ||
-                                        '-'
-                                    }})
-                                </p>
+                            <div>
+                                <label :class="labelClass">Berat Badan (kg)</label>
+                                <Input type="text" inputmode="numeric" v-model="form.health.weight" placeholder="60" :class="inputClass" />
                             </div>
-
-                            <div class="space-y-1">
-                                <span
-                                    class="text-[10px] font-bold text-neutral-500 uppercase"
-                                    >IV & V. Pendidikan & Kesehatan</span
-                                >
-                                <p>
-                                    <strong>Asal Sekolah:</strong>
-                                    {{
-                                        form.education_history.school_name ||
-                                        '-'
-                                    }}
-                                    (Tahun:
-                                    {{
-                                        form.education_history.entry_year || '-'
-                                    }}
-                                    -
-                                    {{
-                                        form.education_history
-                                            .graduation_year || '-'
-                                    }})
-                                </p>
-                                <p>
-                                    <strong>Nilai Akhir:</strong>
-                                    {{
-                                        form.education_history.final_score ||
-                                        '-'
-                                    }}
-                                </p>
-                                <p>
-                                    <strong>Kesehatan:</strong> RS/Faskes:
-                                    {{ form.health.hospital || '-' }} | Dokter:
-                                    {{ form.health.doctor || '-' }}
-                                </p>
-                                <p>
-                                    <strong>Penyakit / Alergi:</strong>
-                                    {{ form.health.medical_history || '-' }} /
-                                    {{ form.health.allergies || '-' }}
-                                </p>
-                                <p>
-                                    <strong>Postur / Gol. Darah:</strong>
-                                    {{ form.health.height || '-' }} cm /
-                                    {{ form.health.weight || '-' }} kg ({{
-                                        getBloodTypeName(
-                                            form.health.blood_type_id,
-                                        )
-                                    }})
-                                </p>
+                            <div class="sm:col-span-3">
+                                <label :class="labelClass">Alergi Makanan / Obat</label>
+                                <Input v-model="form.health.allergies" placeholder="Catatan alergi jika ada" :class="inputClass" />
                             </div>
+                            <div class="sm:col-span-3">
+                                <label :class="labelClass">Riwayat Penyakit Khusus / Disabilitas</label>
+                                <Input v-model="form.health.medical_history" placeholder="Riwayat kesehatan yang perlu diperhatikan" :class="inputClass" />
+                            </div>
+                            <div class="sm:col-span-1">
+                                <label :class="labelClass">Dokter Pribadi</label>
+                                <Input v-model="form.health.doctor" placeholder="DR. Contoh " :class="inputClass" />
+                            </div>
+                            <div class="sm:col-span-1">
+                                <label :class="labelClass">Rumah Sakit</label>
+                                <Input v-model="form.health.hospital" placeholder="Rumah Sakit Contoh" :class="inputClass" />
+                            </div>
+                            <div class="sm:col-span-1">
+                                <label :class="labelClass">Pengobatan</label>
+                                <Input v-model="form.health.medications" placeholder="Nama obat / alamat rumah sakit" :class="inputClass" />
+                            </div>
+                            <div class="sm:col-span-3">
+                                <label :class="labelClass">Catatan Kesehatan</label>
+                                <Input v-model="form.health.notes" placeholder="Catatan kesehatan tambahan" :class="inputClass" />
+                            </div>
+                        </div>
+                    </div>
 
-                            <div
-                                class="col-span-1 space-y-2 border-t border-neutral-200 pt-2 md:col-span-2"
-                            >
-                                <div class="flex items-center justify-between">
-                                    <span
-                                        class="text-[10px] font-bold text-neutral-500 uppercase"
-                                        >VI. Status Kelengkapan Dokumen
-                                        Wajib</span
-                                    >
-                                    <span
-                                        :class="[
-                                            'rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase',
-                                            isDocumentsComplete
-                                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                                                : 'border-amber-300 bg-amber-50 text-amber-700',
-                                        ]"
-                                    >
-                                        {{
-                                            isDocumentsComplete
-                                                ? 'Lengkap (' +
-                                                  requiredDocTypes.filter((d) =>
-                                                      isDocUploaded(d),
-                                                  ).length +
-                                                  '/' +
-                                                  requiredDocTypes.length +
-                                                  ')'
-                                                : 'Belum Lengkap'
-                                        }}
-                                    </span>
+                    <div v-show="currentStep.id === 'education'" class="space-y-6">
+                        <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <History class="h-4 w-4 text-neutral-500" /> Riwayat Pendidikan
+                            </h2>
+                            <Button type="button" size="sm" variant="outline" class="h-8 rounded-lg text-xs" @click="addEducation">
+                                <Plus class="mr-1 h-3.5 w-3.5" /> Tambah Sekolah
+                            </Button>
+                        </div>
+
+                        <div v-if="form.education_histories.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                            <p class="text-xs text-neutral-400 font-medium">Belum ada data riwayat sekolah sebelumnya.</p>
+                        </div>
+
+                        <div v-for="(edu, idx) in form.education_histories" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                            <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeEducation(idx)">
+                                <Trash2 class="h-4 w-4" />
+                            </button>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 pr-6">
+                                <div>
+                                    <label :class="labelClass">Jenjang</label>
+                                    <select v-model="edu.education_level_id" :class="selectClass">
+                                        <option :value="null">Pilih Jenjang</option>
+                                        <option v-for="el in props.educationLevels" :key="el.id" :value="el.id">{{ el.name }}</option>
+                                    </select>
                                 </div>
-
-                                <div
-                                    class="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2 md:grid-cols-3"
+                                <div class="sm:col-span-1">
+                                    <label :class="labelClass">Nama Sekolah</label>
+                                    <Input v-model="edu.school_name" placeholder="Nama Sekolah Sebelumnya" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">NPSN Sekolah</label>
+                                    <Input type="text" inputmode="numeric" maxlength="10" v-model="edu.npsn" placeholder="312312" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Tahun Masuk</label>
+                                    <Input type="text" inputmode="numeric" maxlength="4" v-model="edu.entry_year" placeholder="2018" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Tahun Lulus</label>
+                                    <Input type="text" inputmode="numeric" maxlength="4" v-model="edu.graduation_year" placeholder="2021" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Nilai Ujian / Rata-rata</label>
+                                    <Input v-model="edu.final_score" maxlength="5" @blur="normalizeScoreInput(edu)" placeholder="85.50" :class="inputClass" />
+                                </div>
+                            </div>
+                             <div class="flex items-center gap-2 pt-4">
+                                <input
+                                    type="checkbox"
+                                    :id="'graduated_' + idx"
+                                    v-model="edu.is_graduated"
+                                    class="rounded border-input"
+                                />
+                                <Label
+                                    :for="'graduated_' + idx"
+                                    class="cursor-pointer text-xs font-normal"
+                                    >Lulus dari Sekolah Ini</Label
                                 >
-                                    <div
-                                        v-for="doc in allDocTypes"
-                                        :key="doc.name"
-                                        class="flex items-center justify-between rounded-lg border border-neutral-200 bg-white p-2 text-[11px]"
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="currentStep.id === 'socials'" class="space-y-6">
+                        <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <Share2 class="h-4 w-4 text-neutral-500" /> Media Sosial
+                            </h2>
+                            <Button type="button" size="sm" variant="outline" class="h-8 rounded-lg text-xs" @click="addSocial">
+                                <Plus class="mr-1 h-3.5 w-3.5" /> Tambah Akun
+                            </Button>
+                        </div>
+
+                        <div v-if="form.socials.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                            <p class="text-xs text-neutral-400 font-medium">Belum ada akun media sosial yang didaftarkan.</p>
+                        </div>
+
+                        <div v-for="(soc, idx) in form.socials" :key="idx" class="flex items-center gap-3 rounded-xl border border-neutral-200/80 p-3 dark:border-neutral-800">
+                            <div class="w-1/3">
+                                <label :class="labelClass">Platform</label>
+                                <select v-model="soc.social_platform_id" :class="selectClass">
+                                    <option :value="null">Pilih Platform</option>
+                                    <option v-for="sp in props.socialPlatforms" :key="sp.id" :value="sp.id">{{ sp.name }}</option>
+                                </select>
+                            </div>
+                            <div class="flex-1">
+                                <label :class="labelClass">Username</label>
+                                <Input v-model="soc.username" placeholder="@username" :class="inputClass" />
+                            </div>
+                            <div class="flex-1">
+                                <label :class="labelClass">URL</label>
+                                <Input v-model="soc.url" placeholder="https://example.com/@username" :class="inputClass" />
+                            </div>
+                            <button type="button" class="mt-5 text-neutral-400 hover:text-red-500 transition-colors p-2" @click="removeSocial(idx)">
+                                <Trash2 class="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-show="currentStep.id === 'achievements'" class="space-y-6">
+                        <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <Trophy class="h-4 w-4 text-neutral-500" /> Rekam Prestasi
+                            </h2>
+                            <Button type="button" size="sm" variant="outline" class="h-8 rounded-lg text-xs" @click="addAchievement">
+                                <Plus class="mr-1 h-3.5 w-3.5" /> Tambah Prestasi
+                            </Button>
+                        </div>
+
+                        <div v-if="form.achievements.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                            <p class="text-xs text-neutral-400 font-medium">Belum ada data prestasi yang dicatat.</p>
+                        </div>
+
+                        <div v-for="(ach, idx) in form.achievements" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                            <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeAchievement(idx)">
+                                <Trash2 class="h-4 w-4" />
+                            </button>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 pr-6">
+                                <div class="sm:col-span-1">
+                                    <label :class="labelClass">Nama Kejuaraan / Lomba</label>
+                                    <Input v-model="ach.title" placeholder="Juara 1 O2SN..." :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Penyelenggara</label>
+                                    <Input v-model="ach.organizer" placeholder="Instansi / Dinas" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Kategori</label>
+                                    <select
+                                        v-model="ach.category"
+                                        class="w-full rounded-md border border-input bg-background p-3 text-sm text-xs"
                                     >
-                                        <span
-                                            class="mr-2 truncate font-medium text-neutral-700"
-                                        >
-                                            {{ doc.name }}
-                                            <span
-                                                v-if="!doc.required"
-                                                class="text-[9px] font-normal text-neutral-400"
-                                                >(Opsional)</span
-                                            >
-                                        </span>
-                                        <span
-                                            :class="[
-                                                'rounded px-1.5 py-0.5 text-[9px] font-bold whitespace-nowrap uppercase',
-                                                isDocUploaded(doc.name)
-                                                    ? 'bg-black text-white'
-                                                    : 'bg-neutral-200 text-neutral-600',
-                                            ]"
-                                        >
-                                            {{
-                                                isDocUploaded(doc.name)
-                                                    ? 'Sudah'
-                                                    : 'Belum'
-                                            }}
-                                        </span>
+                                        <option value="">Pilih Kategori</option>
+                                        <option value="Akademik">Akademik</option>
+                                        <option value="Non Akademik">Non Akademik</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Tingkat</label>
+                                    <Input v-model="ach.level" placeholder="Kota / Provinsi / Nasional" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Peringkat</label>
+                                    <Input type="text" maxlength="6" inputmode="numeric" v-model="ach.rank" placeholder="1" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Tanggal Kejuaraan</label>
+                                    <Input type="date" v-model="ach.achievement_date" :class="inputClass" />
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <label :class="labelClass">Deskripsi</label>
+                                    <Input v-model="ach.description" placeholder="Deskripsi Singkat" :class="inputClass" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="currentStep.id === 'violations'" class="space-y-6">
+                        <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <Shield class="h-4 w-4 text-neutral-500" /> Catatan Kedisiplinan
+                            </h2>
+                            <Button type="button" size="sm" variant="outline" class="h-8 rounded-lg text-xs" @click="addViolation">
+                                <Plus class="mr-1 h-3.5 w-3.5" /> Catat Pelanggaran
+                            </Button>
+                        </div>
+
+                        <div v-if="form.violations.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                            <p class="text-xs text-neutral-400 font-medium">Siswa tidak memiliki rekam pelanggaran.</p>
+                        </div>
+
+                        <div v-for="(vio, idx) in form.violations" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                            <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeViolation(idx)">
+                                <Trash2 class="h-4 w-4" />
+                            </button>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 pr-6">
+                                <div class="sm:col-span-2">
+                                    <label :class="labelClass">Bentuk Pelanggaran</label>
+                                    <Input v-model="vio.title" placeholder="Jenis pelanggaran" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Poin Kedisiplinan</label>
+                                    <Input type="text" inputmode="numeric" v-model="vio.point" placeholder="10" :class="inputClass" />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">Tanggal Kejadian</label>
+                                    <Input type="date" v-model="vio.violation_date" :class="inputClass" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label :class="labelClass">Keterangan / Tindakan</label>
+                                    <Input v-model="vio.description" placeholder="Penanganan atau catatan" :class="inputClass" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="currentStep.id === 'documents'" class="space-y-6">
+                        <div class="border-b border-neutral-100 dark:border-neutral-800 pb-4">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-neutral-900 dark:text-white flex items-center gap-2">
+                                <FileText class="h-4 w-4 text-neutral-500" /> Berkas & Dokumen Siswa
+                            </h2>
+                        </div>
+
+                        <div class="rounded-xl border border-neutral-200/80 bg-neutral-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-950/40 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-neutral-700 dark:text-neutral-300">Unggah Berkas Baru</h3>
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label :class="labelClass">Jenis Dokumen</label>
+                                    <select v-model="form.document_type_id" :class="selectClass">
+                                        <option :value="null">Pilih Tipe Dokumen</option>
+                                        <option v-for="dt in props.documentTypes" :key="dt.id" :value="dt.id">{{ dt.name }}</option>
+                                    </select>
+                                </div>
+                                  <div class="space-y-2">
+                                    <Label class="text-xs"
+                                        >Keterangan / Nama Dokumen</Label
+                                    >
+                                    <Input
+                                        v-model="form.new_document_name"
+                                        placeholder="Misal: Ijazah SMP, KK, Akta"
+                                        class="text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label :class="labelClass">File Berkas (PDF / Gambar)</label>
+                                    <Input type="file" @change="handleDocumentFileChange" class="h-10 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300 dark:file:bg-neutral-800 dark:file:text-neutral-300" />
+                                </div>
+                            </div>
+                            <p v-if="isDocumentTypeExists" class="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                Catatan: Berkas jenis ini sudah diunggah. Mengunggah kembali akan menggantikan berkas lama.
+                            </p>
+                        </div>
+
+                        <div v-if="props.student?.documents && props.student.documents.length > 0" class="space-y-3 pt-2">
+                            <h3 class="text-xs font-bold uppercase text-neutral-400">Dokumen Tersimpan</h3>
+                            <div class="divide-y divide-neutral-100 rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
+                                <div v-for="doc in props.student.documents" :key="doc.id" class="flex items-center justify-between p-3.5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+                                            <FileText class="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <p class="text-xs font-semibold text-neutral-800 dark:text-neutral-200">{{ doc.document_type?.name || 'Dokumen' }}</p>
+                                            <p class="text-[11px] text-neutral-400">{{ doc.file_name }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <a :href="documentPreviewUrl(doc.id)" target="_blank" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800">
+                                            Pratinjau
+                                        </a>
+                                        <button type="button" class="p-1.5 text-neutral-400 hover:text-red-500 transition-colors" @click="deleteDocument(doc.id)">
+                                            <Trash2 class="h-4 w-4" />
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="space-y-3 pt-4 text-center">
-                        <div
-                            class="inline-flex rounded-full bg-black p-3 text-white"
-                        >
-                            <ClipboardCheck class="size-7" />
-                        </div>
-                        <h2 class="text-lg font-bold">
-                            Siap Mengirimkan Pendaftaran?
-                        </h2>
-                        <p
-                            class="mx-auto max-w-md text-xs leading-relaxed text-neutral-600"
-                        >
-                            Pastikan ringkasan data di atas sudah benar dan
-                            valid. Klik tombol di bawah ini untuk mengirimkan
-                            pendaftaran.
-                        </p>
-                        <button
-                            @click="submitRegistration"
-                            :disabled="form.processing || !isDocumentsComplete"
-                            type="button"
-                            class="mt-2 rounded-xl bg-black px-8 py-3 text-xs font-bold tracking-widest text-white uppercase shadow-md transition-all hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {{
-                                form.processing
-                                    ? 'Memproses...'
-                                    : 'Kirim Pendaftaran Sekarang'
-                            }}
-                        </button>
+                </div>
+
+                <div class="flex items-center justify-between border-t border-neutral-100 bg-neutral-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
+                    <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-medium rounded-lg text-neutral-500 hover:text-neutral-900 dark:hover:text-white" @click="handleCancel" :disabled="form.processing">
+                        Batal
+                    </Button>
+                    <div class="flex items-center gap-2">
+                        <Button type="button" variant="outline" :disabled="isFirstStep" @click="prevStep" class="h-9 px-4 text-xs rounded-lg border-neutral-200 dark:border-neutral-800">
+                            <ChevronLeft class="mr-1 h-3.5 w-3.5" /> Kembali
+                        </Button>
+                        <Button v-if="!isLastStep" type="button" @click="nextStep" class="h-9 px-4 text-xs rounded-lg bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 font-medium">
+                            Lanjut <ChevronRight class="ml-1 h-3.5 w-3.5" />
+                        </Button>
+                        <Button v-else type="submit" :disabled="form.processing" class="h-9 px-5 text-xs rounded-lg bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 font-semibold shadow-sm">
+                            <Loader2 v-if="form.processing" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                            <span>Simpan Perubahan</span>
+                        </Button>
                     </div>
                 </div>
-            </div>
-
-            <div
-                class="mt-12 flex items-center justify-between border-t border-black/10 pt-6"
-            >
-                <button
-                    v-if="currentStep > 1"
-                    @click="prevStep"
-                    type="button"
-                    class="flex items-center gap-2 text-xs font-bold tracking-wider text-black uppercase transition-opacity hover:opacity-60"
-                >
-                    <ArrowLeft class="size-4" /> Kembali
-                </button>
-                <div v-else></div>
-
-                <button
-                    v-if="currentStep < totalSteps"
-                    @click="nextStep"
-                    :disabled="!isStepValid"
-                    type="button"
-                    :class="[
-                        'flex items-center gap-2 rounded-lg px-5 py-2.5 text-xs font-bold tracking-wider uppercase transition-colors',
-                        isStepValid
-                            ? 'cursor-pointer bg-black text-white hover:bg-neutral-800'
-                            : 'cursor-not-allowed bg-neutral-300 text-neutral-500',
-                    ]"
-                >
-                    Langkah Selanjutnya <ArrowRight class="size-4" />
-                </button>
-            </div>
+            </form>
         </main>
 
-        <footer class="border-t border-black/10 py-8 text-center">
-            <p
-                class="text-[10px] font-bold tracking-widest text-neutral-500 uppercase"
-            >
-                SISTEM INFORMASI AKADEMIK &bull; PENDAFTARAN SISWA
-            </p>
-        </footer>
+        <div v-if="isPhotoCropOpen && form.photo_file" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div class="w-full max-w-sm rounded-2xl bg-neutral-900 p-5 text-white shadow-2xl border border-neutral-800 space-y-4">
+                <div class="flex items-center justify-between border-b border-neutral-800 pb-3">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-300">Penyesuaian Foto</h3>
+                    <span class="text-[10px] text-neutral-500">Geser untuk memposisikan</span>
+                </div>
+                
+                <div class="relative h-60 w-full overflow-hidden rounded-xl border border-neutral-800 bg-black cursor-move select-none"
+                    @pointerdown="handleCropPointerDown"
+                    @pointermove="handleCropPointerMove"
+                    @pointerup="handleCropPointerEnd"
+                    @pointercancel="handleCropPointerEnd"
+                >
+                    <img v-if="studentPhotoSrc" :src="studentPhotoSrc" class="absolute h-full w-full object-contain pointer-events-none"
+                        :style="{
+                            transform: `scale(${photoZoom / 100})`,
+                            transformOrigin: `${photoPosition.x}% ${photoPosition.y}%`,
+                        }"
+                    />
+                </div>
+
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between text-[11px] text-neutral-400">
+                        <span>Zoom</span>
+                        <span class="font-mono text-white">{{ photoZoom }}%</span>
+                    </div>
+                    <input type="range" min="100" max="200" step="5" v-model.number="photoZoom" class="w-full h-1 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-white" />
+                </div>
+
+                <div class="flex justify-end gap-2 border-t border-neutral-800 pt-3">
+                    <button type="button" class="rounded-lg px-3 py-1.5 text-xs text-neutral-400 hover:text-white" @click="photoPosition = { x: 50, y: 50 }; photoZoom = 100">Reset</button>
+                    <button type="button" class="rounded-lg bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-neutral-200" @click="isPhotoCropOpen = false">Selesai</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <style scoped>
-.animate-in {
-    animation: fadeIn 0.3s ease-out forwards;
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
 }
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 </style>
