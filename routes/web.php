@@ -118,6 +118,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // ==========================================
+    // ROUTE EXPORT DATA SISWA (EXCEL)
+    // ==========================================
+
+    Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
+
+    // ==========================================
     // API / JSON RESOURCE ROUTES
     // ==========================================
     Route::apiResource('blood-types', BloodTypeController::class)->only(['index', 'store', 'update', 'destroy'])->middleware('can:manage-master-data');

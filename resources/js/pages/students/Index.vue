@@ -30,6 +30,7 @@ import {
     Phone,
     Mail,
     MapPin,
+    Download,
 } from 'lucide-vue-next';
 import { ref, computed, watch } from 'vue';
 
@@ -44,11 +45,15 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+// 1. Import default untuk exportData
+import exportStudentData from '@/routes/students'; 
+
+// 2. Import sisanya menggunakan kurung kurawal
 import {
     destroy as destroyStudent,
     detail as studentDetail,
     forceDelete as forceDeleteStudent,
-    index as studentsIndex,
+    index as studentsIndex, // <-- Kita bisa gunakan base URL dari studentsIndex
     restore as restoreStudent,
     unverify as unverifyStudent,
     verify as verifyStudent,
@@ -243,6 +248,31 @@ const handleResetFilters = () => {
     selectedBloodType.value = '';
     activeTab.value = 'active';
     isFilterModalOpen.value = false;
+};
+
+// Handler Export Data XLSX
+const handleExport = () => {
+    const params = new URLSearchParams();
+
+    if (searchQuery.value) params.append('search', searchQuery.value);
+    if (selectedClassroom.value) params.append('classroom_id', String(selectedClassroom.value));
+    if (selectedMajor.value) params.append('major_id', String(selectedMajor.value));
+    if (selectedAcademicYear.value) params.append('academic_year_id', String(selectedAcademicYear.value));
+    if (selectedCitizenship.value) params.append('citizenship_id', String(selectedCitizenship.value));
+    if (selectedGender.value) params.append('gender_id', String(selectedGender.value));
+    if (selectedReligion.value) params.append('religion_id', String(selectedReligion.value));
+    if (selectedStudentStatus.value) params.append('student_status_id', String(selectedStudentStatus.value));
+    if (selectedBloodType.value) params.append('blood_type_id', String(selectedBloodType.value));
+    if (activeTab.value) params.append('tab', activeTab.value);
+
+    const baseUrl = typeof studentsIndex?.url === 'function' 
+        ? studentsIndex.url() 
+        : '/students'; 
+
+    const queryString = params.toString();
+    const exportUrl = `${baseUrl}/export${queryString ? `?${queryString}` : ''}`;
+
+    window.location.href = exportUrl;
 };
 
 // Modal Triggers
@@ -533,6 +563,14 @@ const shareDocument = async (doc: StudentDocument) => {
                 </p>
             </div>
             <div class="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    @click="handleExport"
+                    class="flex items-center gap-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                >
+                    <Download class="h-4 w-4" />
+                    <span>Export Excel (.xlsx)</span>
+                </Button>
                 <Button
                     @click="handleOpenCreateModal"
                     class="flex items-center gap-2 bg-blue-600 font-semibold text-white shadow-sm hover:bg-blue-700"

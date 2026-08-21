@@ -21,6 +21,9 @@ use App\Models\Student;
 use App\Models\StudentAchievement;
 use App\Models\StudentStatus;
 use App\Models\StudentViolation;
+use App\Exports\StudentsExport;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use App\Services\StudentDocumentService;
 use App\Services\StudentService;
 use Illuminate\Database\Eloquent\Builder;
@@ -181,6 +184,24 @@ class StudentController extends Controller
                 'Expires' => '0',
             ],
         );
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $filters = $request->only([
+            'search',
+            'classroom_id',
+            'major_id',
+            'academic_year_id',
+            'citizenship_id',
+            'gender_id',
+            'religion_id',
+            'student_status_id',
+            'blood_type_id',
+            'tab',
+        ]);
+
+        return Excel::download(new StudentsExport($filters), 'data-siswa.xlsx');
     }
 
     /** @return list<string> */

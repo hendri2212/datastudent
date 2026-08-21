@@ -271,3 +271,7 @@ export interface StudentSocialForm extends Omit<
 > {
     social_platform_id: number | null;
 }
+
+export const exportData = {
+    url: () => '/students/export', 
+}; 
