@@ -30,6 +30,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/pendaftaran', [WelcomeController::class, 'store'])->name('welcome.register');
     Route::post('/students', [StudentController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
+    // POST route untuk file uploads - routes ke same update handler
+    Route::post('/students/{student}', [StudentController::class, 'update']);
 });
 
 // 2. ROUTE APLIKASI UTAMA (MEMBUTUHKAN AUTHENTICATION)
@@ -88,6 +90,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/students/{student}/achievements', [StudentAchievementController::class, 'store'])->name('students.achievements.store');
         Route::put('/achievements/{achievement}', [StudentAchievementController::class, 'update'])->name('achievements.update');
         Route::delete('/achievements/{achievement}', [StudentAchievementController::class, 'destroy'])->name('achievements.destroy');
+
+        Route::get('/student-achievements/{achievement}/certificate', [StudentAchievementController::class, 'downloadCertificate'])
+        ->name('student-achievements.certificate');
     });
 
     // ==========================================

@@ -101,15 +101,14 @@ export interface StudentHealth {
 
 export interface StudentAchievement {
     id?: number;
-    student_id?: number;
     title: string;
     organizer?: string;
     level?: string;
     category?: string;
-    rank?: number;
+    rank?: string | number;
     achievement_date?: string;
-    certificate?: string;
     description?: string;
+    certificate?: File | string | null; // Tambahkan ini
 }
 
 export interface StudentViolation {

@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Student;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Validator;
 
 class StudentRequest extends FormRequest
@@ -99,6 +100,25 @@ class StudentRequest extends FormRequest
             'achievements.*.category' => ['nullable', 'string', 'max:100'],
             'achievements.*.rank' => ['nullable', 'integer', 'min:1'],
             'achievements.*.achievement_date' => ['nullable', 'date'],
+            'achievements.*.certificate' => [
+                'nullable',
+                function ($attribute, $value, $fail) {
+                    if ($value instanceof UploadedFile) {
+                        $extension = strtolower($value->getClientOriginalExtension());
+                        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png'];
+                        
+                        if (!in_array($extension, $allowedExtensions)) {
+                            $fail('Format berkas sertifikat harus berupa pdf, jpg, jpeg, atau png.');
+                        }
+                        
+                        if ($value->getSize() > 2048 * 1024) { // Max 2MB
+                            $fail('Ukuran berkas sertifikat tidak boleh lebih dari 2MB.');
+                        }
+                    } elseif (!is_string($value) && $value !== null) {
+                        $fail('Format data sertifikat tidak valid.');
+                    }
+                },
+            ],
             'achievements.*.description' => ['nullable', 'string'],
 
             'violations' => ['nullable', 'array'],

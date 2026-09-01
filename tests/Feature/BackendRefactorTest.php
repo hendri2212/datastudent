@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class BackendRefactorTest extends TestCase
@@ -133,7 +134,10 @@ class BackendRefactorTest extends TestCase
         $admin = User::factory()->create(['role' => UserRole::Admin]);
 
         $this->actingAs($admin)
-            ->get(route('master.academic-years.index'))
-            ->assertOk();
+        ->get(route('master.academic-years.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('master/academic-years/Index')
+        );
     }
 }

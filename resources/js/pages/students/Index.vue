@@ -45,15 +45,12 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-// 1. Import default untuk exportData
-import exportStudentData from '@/routes/students'; 
 
-// 2. Import sisanya menggunakan kurung kurawal
 import {
     destroy as destroyStudent,
     detail as studentDetail,
     forceDelete as forceDeleteStudent,
-    index as studentsIndex, // <-- Kita bisa gunakan base URL dari studentsIndex
+    index as studentsIndex, 
     restore as restoreStudent,
     unverify as unverifyStudent,
     verify as verifyStudent,
@@ -254,16 +251,45 @@ const handleResetFilters = () => {
 const handleExport = () => {
     const params = new URLSearchParams();
 
-    if (searchQuery.value) params.append('search', searchQuery.value);
-    if (selectedClassroom.value) params.append('classroom_id', String(selectedClassroom.value));
-    if (selectedMajor.value) params.append('major_id', String(selectedMajor.value));
-    if (selectedAcademicYear.value) params.append('academic_year_id', String(selectedAcademicYear.value));
-    if (selectedCitizenship.value) params.append('citizenship_id', String(selectedCitizenship.value));
-    if (selectedGender.value) params.append('gender_id', String(selectedGender.value));
-    if (selectedReligion.value) params.append('religion_id', String(selectedReligion.value));
-    if (selectedStudentStatus.value) params.append('student_status_id', String(selectedStudentStatus.value));
-    if (selectedBloodType.value) params.append('blood_type_id', String(selectedBloodType.value));
-    if (activeTab.value) params.append('tab', activeTab.value);
+    if (searchQuery.value) {
+params.append('search', searchQuery.value);
+}
+
+    if (selectedClassroom.value) {
+params.append('classroom_id', String(selectedClassroom.value));
+}
+
+    if (selectedMajor.value) {
+params.append('major_id', String(selectedMajor.value));
+}
+
+    if (selectedAcademicYear.value) {
+params.append('academic_year_id', String(selectedAcademicYear.value));
+}
+
+    if (selectedCitizenship.value) {
+params.append('citizenship_id', String(selectedCitizenship.value));
+}
+
+    if (selectedGender.value) {
+params.append('gender_id', String(selectedGender.value));
+}
+
+    if (selectedReligion.value) {
+params.append('religion_id', String(selectedReligion.value));
+}
+
+    if (selectedStudentStatus.value) {
+params.append('student_status_id', String(selectedStudentStatus.value));
+}
+
+    if (selectedBloodType.value) {
+params.append('blood_type_id', String(selectedBloodType.value));
+}
+
+    if (activeTab.value) {
+params.append('tab', activeTab.value);
+}
 
     const baseUrl = typeof studentsIndex?.url === 'function' 
         ? studentsIndex.url() 
@@ -2069,46 +2095,59 @@ const shareDocument = async (doc: StudentDocument) => {
                 </div>
 
                 <div
-                    v-if="selectedStudent.achievements?.length"
-                    class="space-y-3"
+    v-if="selectedStudent.achievements?.length"
+    class="space-y-3"
+>
+    <h4
+        class="flex items-center gap-1.5 border-b pb-1 text-xs font-bold tracking-wider text-neutral-500 uppercase"
+    >
+        <Trophy class="h-4 w-4 text-amber-500" /> Prestasi Siswa
+    </h4>
+    <div class="space-y-2 text-xs">
+        <div
+            v-for="(ach, index) in selectedStudent.achievements"
+            :key="ach.id || index"
+            class="rounded-lg border bg-amber-50/20 p-3 dark:border-neutral-800 dark:bg-amber-950/10"
+        >
+            <div class="flex items-center justify-between">
+                <p
+                    class="font-bold text-neutral-900 dark:text-neutral-100"
                 >
-                    <h4
-                        class="flex items-center gap-1.5 border-b pb-1 text-xs font-bold tracking-wider text-neutral-500 uppercase"
-                    >
-                        <Trophy class="h-4 w-4 text-amber-500" /> Prestasi Siswa
-                    </h4>
-                    <div class="space-y-2 text-xs">
-                        <div
-                            v-for="(ach, index) in selectedStudent.achievements"
-                            :key="ach.id || index"
-                            class="rounded-lg border bg-amber-50/20 p-3 dark:border-neutral-800 dark:bg-amber-950/10"
-                        >
-                            <div class="flex items-center justify-between">
-                                <p
-                                    class="font-bold text-neutral-900 dark:text-neutral-100"
-                                >
-                                    {{ ach.title }}
-                                </p>
-                                <Badge
-                                    variant="outline"
-                                    class="border-amber-300 bg-amber-100 text-amber-800"
-                                    >Peringkat: {{ ach.rank || '-' }}</Badge
-                                >
-                            </div>
-                            <p class="mt-1 text-[11px] text-neutral-500">
-                                Penyelenggara: {{ ach.organizer || '-' }} |
-                                Tingkat: {{ ach.level || '-' }} | Tanggal:
-                                {{ ach.achievement_date || '-' }}
-                            </p>
-                            <p
-                                v-if="ach.description"
-                                class="mt-1 text-[11px] text-neutral-600 dark:text-neutral-300"
-                            >
-                                {{ ach.description }}
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                    {{ ach.title }}
+                </p>
+                <Badge
+                    variant="outline"
+                    class="border-amber-300 bg-amber-100 text-amber-800"
+                    >Peringkat: {{ ach.rank || '-' }}</Badge
+                >
+            </div>
+            <p class="mt-1 text-[11px] text-neutral-500">
+                Penyelenggara: {{ ach.organizer || '-' }} |
+                Tingkat: {{ ach.level || '-' }} | Tanggal:
+                {{ ach.achievement_date || '-' }}
+            </p>
+            <p
+                v-if="ach.description"
+                class="mt-1 text-[11px] text-neutral-600 dark:text-neutral-300"
+            >
+                {{ ach.description }}
+            </p>
+
+            <!-- Tambahan: Tautan Lihat/Unduh Sertifikat -->
+            <div v-if="ach.certificate" class="mt-2 border-t pt-2 dark:border-neutral-800">
+                <a
+                    :href="`/storage/${ach.certificate}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center gap-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 hover:underline text-[11px]"
+                >
+                    <FileText class="h-3.5 w-3.5" />
+                    <span>Lihat Sertifikat / Piagam</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <div
                     v-if="selectedStudent.violations?.length"

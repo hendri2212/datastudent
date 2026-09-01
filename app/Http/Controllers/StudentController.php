@@ -291,10 +291,9 @@ class StudentController extends Controller
     /** @param array<string, mixed> $data */
     private function uploadFromForm(StudentRequest $request, Student $student, array $data): void
     {
-        // Handle photo upload (replace previous if exists)
+        // 1. Handle photo upload
         $photo = $request->file('photo_file');
         if ($photo !== null) {
-            // Delete previous photo if present
             if ($student->photo && Storage::disk('public')->exists($student->photo)) {
                 Storage::disk('public')->delete($student->photo);
             }
@@ -306,7 +305,43 @@ class StudentController extends Controller
             }
         }
 
-        // Handle document upload if provided
+        // 2. Handle certificate uploads for achievements
+        /** @var array<int, array<string, \Illuminate\Http\UploadedFile|mixed>>|null $achievementsInput */
+        $achievementsInput = $request->file('achievements');
+        if (is_array($achievementsInput)) {
+            $existingAchievements = $student->achievements()->get();
+
+            foreach ($achievementsInput as $index => $achievementFileGroup) {
+                if (
+                    is_array($achievementFileGroup) &&
+                    isset($achievementFileGroup['certificate']) &&
+                    $achievementFileGroup['certificate'] instanceof \Illuminate\Http\UploadedFile &&
+                    $achievementFileGroup['certificate']->isValid()
+                ) {
+                    /** @var \Illuminate\Http\UploadedFile $file */
+                    $file = $achievementFileGroup['certificate'];
+                    $achievementId = $data['achievements'][$index]['id'] ?? null;
+
+                    $achievement = null;
+
+                    if ($achievementId) {
+                        $achievement = $existingAchievements->firstWhere('id', $achievementId);
+                    } else {
+                        $achievement = $existingAchievements->get($index);
+                    }
+
+                    if ($achievement) {
+                        if ($achievement->certificate && Storage::disk('public')->exists($achievement->certificate)) {
+                            Storage::disk('public')->delete($achievement->certificate);
+                        }
+                        $path = $file->store("certificates/{$student->id}", 'public');
+                        $achievement->update(['certificate' => $path]);
+                    }
+                }
+            }
+        }
+
+        // 3. Handle document upload
         $file = $request->file('new_document_file');
         if ($file === null) {
             return;

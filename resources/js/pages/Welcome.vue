@@ -244,6 +244,14 @@ const handleDocumentFileChange = (event: Event) => {
         (event.target as HTMLInputElement).files?.[0] ?? null;
 };
 
+const handleCertificateFileChange = (event: Event, index: number) => {
+    const target = event.target as HTMLInputElement;
+
+    if (target.files && target.files[0]) {
+        form.achievements[index].certificate = target.files[0];
+    }
+};
+
 const createImage = (src: string) =>
     new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
@@ -529,6 +537,7 @@ watch(
                       ...ach,
                       rank: formatNumberToString(ach.rank),
                       achievement_date: formatDateForInput(ach.achievement_date),
+                      certificate: ach.certificate || null,
                   }))
                 : [];
 
@@ -577,6 +586,7 @@ const addAchievement = () => {
         rank: '',
         achievement_date: '',
         description: '',
+        certificate: null,
     });
 };
 const removeAchievement = (index: number) => form.achievements.splice(index, 1);
@@ -695,6 +705,7 @@ const handleSubmit = async () => {
             ...ach,
             rank: parseNullableNumber(ach.rank),
             achievement_date: ach.achievement_date || null,
+            certificate: ach.certificate || null, 
         })),
 
         violations: data.violations.map((vio) => ({
@@ -708,32 +719,32 @@ const handleSubmit = async () => {
         await prepareCroppedPhoto();
     }
 
+    const hasAchievementCertificate = form.achievements.some(
+        (ach) => ach.certificate instanceof File
+    );
+
+    const hasAnyFile = form.new_document_file || form.photo_file || hasAchievementCertificate;
+
+    const onSuccessHandler = () => {
+        resetDocumentFields();
+        resetPhotoField();
+        emit('saved');
+    };
+
     if (props.student && props.student.id) {
-        if (form.new_document_file || form.photo_file) {
+        if (hasAnyFile) {
             form.post(updateStudent.url(props.student.id), {
                 headers: { 'X-HTTP-Method-Override': 'PUT' },
-                onSuccess: () => {
-                    resetDocumentFields();
-                    resetPhotoField();
-                    emit('saved');
-                },
+                onSuccess: onSuccessHandler,
             });
         } else {
             form.put(updateStudent.url(props.student.id), {
-                onSuccess: () => {
-                    resetDocumentFields();
-                    resetPhotoField();
-                    emit('saved');
-                },
+                onSuccess: onSuccessHandler,
             });
         }
     } else {
         form.post(storeStudent.url(), {
-            onSuccess: () => {
-                resetDocumentFields();
-                resetPhotoField();
-                emit('saved');
-            },
+            onSuccess: onSuccessHandler,
         });
     }
 };
@@ -1232,7 +1243,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                     <label :class="labelClass">Kategori</label>
                                     <select
                                         v-model="ach.category"
-                                        class="w-full rounded-md border border-input bg-background p-3 text-sm text-xs"
+                                        class="w-full rounded-md border border-input bg-background p-3 text-xs"
                                     >
                                         <option value="">Pilih Kategori</option>
                                         <option value="Akademik">Akademik</option>
@@ -1251,6 +1262,29 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                     <label :class="labelClass">Tanggal Kejuaraan</label>
                                     <Input type="date" v-model="ach.achievement_date" :class="inputClass" />
                                 </div>
+
+                                <!-- TAMBAHAN INPUT SERTIFIKAT -->
+                                <div class="sm:col-span-3">
+                                    <label :class="labelClass">Berkas Sertifikat / Piagam (PDF, JPG, PNG - Max 2MB)</label>
+                                    <Input
+                                        :id="`certificate-${idx}`"
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png,image/jpeg,image/png,application/pdf"
+                                        :class="inputClass"
+                                        @change="(e: Event) => handleCertificateFileChange(e, idx)"
+                                    />
+                                    
+                                    <!-- Status Sertifikat Tersimpan (Edit Mode) -->
+                                    <p v-if="typeof ach.certificate === 'string' && ach.certificate" class="mt-1 text-xs text-neutral-500">
+                                        Sertifikat tersimpan: <span class="font-mono text-neutral-700 dark:text-neutral-300">{{ ach.certificate }}</span>
+                                    </p>
+                                    
+                                    <!-- Error Message dari Inertia -->
+                                    <p v-if="form.errors[`achievements.${idx}.certificate`]" class="mt-1 text-xs text-red-500">
+                                        {{ form.errors[`achievements.${idx}.certificate`] }}
+                                    </p>
+                                </div>
+
                                 <div class="sm:col-span-3">
                                     <label :class="labelClass">Deskripsi</label>
                                     <Input v-model="ach.description" placeholder="Deskripsi Singkat" :class="inputClass" />

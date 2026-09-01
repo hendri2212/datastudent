@@ -418,19 +418,37 @@ watch(
     () => props.student,
     (newStudent) => {
         if (newStudent) {
+            // Try to recover enrollment from either snake_case or camelCase properties
+            const currentEnrollment =
+                newStudent.current_enrollment ?? newStudent.current_enrollment;
+
             photoCacheBuster.value = Date.now();
             form.reset();
             form.clearErrors();
-            form.school_id = parseNullableId(newStudent.school_id);
-            form.major_id = parseNullableId(newStudent.major_id);
-            form.classroom_id = parseNullableId(newStudent.classroom_id);
+
+            // Recover enrollment IDs from student properties or currentEnrollment relation
+            // School ID: from student.school_id OR currentEnrollment.classroom.major.school.id
+            form.school_id = parseNullableId(
+                newStudent.school_id ??
+                    currentEnrollment?.classroom?.major?.school?.id,
+            );
+            // Major ID: from student.major_id OR currentEnrollment.classroom.major.id
+            form.major_id = parseNullableId(
+                newStudent.major_id ?? currentEnrollment?.classroom?.major?.id,
+            );
+            // Classroom ID: from student.classroom_id OR currentEnrollment.classroom_id
+            form.classroom_id = parseNullableId(
+                newStudent.classroom_id ?? currentEnrollment?.classroom_id,
+            );
+            // Academic Year ID: from student.academic_year_id OR currentEnrollment.academic_year_id
             form.academic_year_id = parseNullableId(
-                newStudent.academic_year_id,
+                newStudent.academic_year_id ?? currentEnrollment?.academic_year_id,
             );
             form.gender_id = parseNullableId(newStudent.gender_id);
             form.religion_id = parseNullableId(newStudent.religion_id);
+            // Student Status ID: from student.student_status_id OR currentEnrollment.student_status_id
             form.student_status_id = parseNullableId(
-                newStudent.student_status_id,
+                newStudent.student_status_id ?? currentEnrollment?.student_status_id,
             );
             form.citizenship_id = parseNullableId(newStudent.citizenship_id);
 
@@ -536,7 +554,7 @@ watch(
                       rank: formatNumberToString(ach.rank),
                       achievement_date: formatDateForInput(
                           ach.achievement_date,
-                      ),
+                      ),certificate: ach.certificate || null,
                   }))
                 : [];
 
@@ -595,11 +613,20 @@ const addAchievement = () => {
         rank: '',
         achievement_date: '',
         description: '',
+        certificate: null,
     });
 };
 
 const removeAchievement = (index: number) => {
     form.achievements.splice(index, 1);
+};
+
+const handleCertificateFileChange = (event: Event, index: number) => {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+
+    if (form.achievements[index]) {
+        form.achievements[index].certificate = file;
+    }
 };
 
 const normalizeScoreInput = (edu: EducationHistoryForm) => {
@@ -694,6 +721,28 @@ const handleSubmit = async () => {
         }
     }
 
+    const requiredAcademicIds = {
+        school_id: parseNullableId(form.school_id),
+        major_id: parseNullableId(form.major_id),
+        classroom_id: parseNullableId(form.classroom_id),
+        academic_year_id: parseNullableId(form.academic_year_id),
+        student_status_id: parseNullableId(form.student_status_id),
+    };
+
+    const missingRequired = Object.entries(requiredAcademicIds).find(
+        ([, value]) => value === null,
+    );
+
+    if (missingRequired) {
+        const [missingField] = missingRequired;
+        alert(
+            `Field ${missingField.replace(/_/g, ' ')} wajib diisi sebelum menyimpan.`,
+        );
+        activeTab.value = 'biodata';
+
+        return;
+    }
+
     form.transform((data) => ({
         ...data,
         school_id: parseNullableId(data.school_id),
@@ -756,6 +805,7 @@ const handleSubmit = async () => {
             ...ach,
             rank: parseNullableNumber(ach.rank),
             achievement_date: ach.achievement_date || null,
+            certificate: ach.certificate,
         })),
 
         violations: data.violations.map((vio) => ({
@@ -770,33 +820,37 @@ const handleSubmit = async () => {
     }
 
     if (props.student && props.student.id) {
-        if (form.new_document_file || form.photo_file) {
-            form.post(updateStudent.url(props.student.id), {
-                headers: { 'X-HTTP-Method-Override': 'PUT' },
-                onSuccess: () => {
-                    resetDocumentFields();
-                    resetPhotoField();
-                    handleClose();
-                    emit('saved');
-                },
-            });
-        } else {
-            form.put(updateStudent.url(props.student.id), {
-                onSuccess: () => {
-                    resetDocumentFields();
-                    resetPhotoField();
-                    handleClose();
-                    emit('saved');
-                },
-            });
-        }
+        // Untuk update siswa - gunakan POST ke /students/{id} yang sekarang di-route ke update handler
+        form.post(updateStudent.url(props.student.id), {
+            onSuccess: () => {
+                resetDocumentFields();
+                resetPhotoField();
+                handleClose();
+                emit('saved');
+            },
+            onError: (errors) => {
+                console.error('Form errors:', errors);
+                const errorMessages = Object.values(errors)
+                    .flat()
+                    .join('\n');
+                alert('Gagal menyimpan data:\n' + errorMessages);
+            },
+        });
     } else {
+        // Untuk create siswa baru - gunakan POST ke /students
         form.post(storeStudent.url(), {
             onSuccess: () => {
                 resetDocumentFields();
                 resetPhotoField();
                 handleClose();
                 emit('saved');
+            },
+            onError: (errors) => {
+                console.error('Form errors:', errors);
+                const errorMessages = Object.values(errors)
+                    .flat()
+                    .join('\n');
+                alert('Gagal menyimpan data:\n' + errorMessages);
             },
         });
     }
@@ -970,6 +1024,7 @@ const handleSubmit = async () => {
                                 id="nisn"
                                 type="text"
                                 inputmode="numeric"
+                                maxlength="10"
                                 pattern="[0-9]*"
                                 v-model="form.nisn"
                                 placeholder="Nomor Induk Siswa Nasional"
@@ -987,6 +1042,7 @@ const handleSubmit = async () => {
                                 id="nis"
                                 type="text"
                                 inputmode="numeric"
+                                maxlength="5"
                                 pattern="[0-9]*"
                                 v-model="form.nis"
                                 placeholder="Nomor Induk Sekolah"
@@ -1613,6 +1669,44 @@ const handleSubmit = async () => {
                                 />
                             </div>
                             <div class="space-y-1">
+                                <Label class="text-xs">Pekerjaan Wali</Label>
+                                <select
+                                    v-model="form.family.guardian_occupation_id"
+                                    class="w-full rounded-md border border-input bg-background p-2 text-sm"
+                                >
+                                    <option :value="null">
+                                        Pilih Pekerjaan
+                                    </option>
+                                    <option
+                                        v-for="o in props.occupations"
+                                        :key="o.id"
+                                        :value="o.id"
+                                    >
+                                        {{ o.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <Label class="text-xs">Penghasilan Wali</Label>
+                                <select
+                                    v-model="
+                                        form.family.guardian_income_category_id
+                                    "
+                                    class="w-full rounded-md border border-input bg-background p-2 text-sm"
+                                >
+                                    <option :value="null">
+                                        Pilih Penghasilan
+                                    </option>
+                                    <option
+                                        v-for="inc in props.incomeCategories"
+                                        :key="inc.id"
+                                        :value="inc.id"
+                                    >
+                                        {{ inc.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
                                 <Label class="text-xs">No. Telepon Wali</Label>
                                 <Input
                                     v-model="form.family.guardian_phone"
@@ -1890,6 +1984,7 @@ const handleSubmit = async () => {
                                 <Label class="text-xs">NPSN</Label>
                                 <Input
                                     v-model="edu.npsn"
+                                    maxlength="8"
                                     placeholder="Nomor NPSN"
                                     class="text-sm"
                                 />
@@ -2024,9 +2119,7 @@ const handleSubmit = async () => {
                 <!-- Tab Prestasi -->
                 <div v-show="activeTab === 'achievements'" class="space-y-4">
                     <div class="flex items-center justify-between">
-                        <h4
-                            class="text-xs font-bold tracking-wider text-neutral-500 uppercase"
-                        >
+                        <h4 class="text-xs font-bold tracking-wider text-neutral-500 uppercase">
                             Daftar Prestasi
                         </h4>
                         <Button
@@ -2044,9 +2137,9 @@ const handleSubmit = async () => {
                     <div
                         v-for="(ach, index) in form.achievements"
                         :key="index"
-                        class="space-y-2 rounded-lg border p-3 dark:border-neutral-800"
+                        class="space-y-3 rounded-lg border p-3 dark:border-neutral-800"
                     >
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-center justify-between gap-2">
                             <Input
                                 v-model="ach.title"
                                 placeholder="Judul Prestasi / Lomba"
@@ -2061,6 +2154,7 @@ const handleSubmit = async () => {
                                 <Trash2 class="h-4 w-4 text-red-500" />
                             </Button>
                         </div>
+
                         <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
                             <div class="space-y-1">
                                 <Label class="text-xs">Penyelenggara</Label>
@@ -2071,9 +2165,7 @@ const handleSubmit = async () => {
                                 />
                             </div>
                             <div class="space-y-1">
-                                <Label class="text-xs"
-                                    >Tingkat / Jenis Lomba</Label
-                                >
+                                <Label class="text-xs">Tingkat / Jenis Lomba</Label>
                                 <Input
                                     v-model="ach.level"
                                     placeholder="Sekolah / Kota / Nasional"
@@ -2084,16 +2176,15 @@ const handleSubmit = async () => {
                                 <Label class="text-xs">Kategori</Label>
                                 <select
                                     v-model="ach.category"
-                                    class="w-full rounded-md border border-input bg-background p-2 text-sm text-xs"
+                                    class="w-full rounded-md border border-input bg-background p-2 text-xs"
                                 >
                                     <option value="">Pilih Kategori</option>
                                     <option value="Akademik">Akademik</option>
-                                    <option value="Non Akademik">
-                                        Non Akademik
-                                    </option>
+                                    <option value="Non Akademik">Non Akademik</option>
                                 </select>
                             </div>
                         </div>
+
                         <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
                             <div class="space-y-1">
                                 <Label class="text-xs">Peringkat / Juara</Label>
@@ -2120,6 +2211,21 @@ const handleSubmit = async () => {
                                     class="text-xs"
                                 />
                             </div>
+                        </div>
+
+                        <!-- Tambahan: Input File Sertifikat & Pratinjau Berkas -->
+                        <div class="space-y-1.5">
+                            <Label :for="`certificate-${index}`">Berkas Sertifikat / Piagam (PDF / Image)</Label>
+                            <Input
+                                :id="`certificate-${index}`"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                @change="(e: Event) => handleCertificateFileChange(e, index)"
+                            />
+                            <!-- Menampilkan info sertifikat tersimpan jika ada -->
+                            <p v-if="typeof ach.certificate === 'string' && ach.certificate" class="text-xs text-neutral-500">
+                                Sertifikat tersimpan: <span class="font-mono">{{ ach.certificate }}</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -2170,6 +2276,7 @@ const handleSubmit = async () => {
                                 <Input
                                     type="number"
                                     v-model.number="vio.point"
+                                    maxlength="9"
                                     placeholder="0"
                                     class="text-sm"
                                 />
