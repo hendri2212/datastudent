@@ -396,7 +396,13 @@ const filteredClassrooms = computed(
         ) ?? [],
 );
 
+const isInitialLoading = ref(false);
+
 const handleSchoolChange = () => {
+    if (isInitialLoading.value) {
+        return;
+    }
+
     if (!filteredMajors.value.some((major) => major.id === form.major_id)) {
         form.major_id = null;
         form.classroom_id = null;
@@ -404,6 +410,10 @@ const handleSchoolChange = () => {
 };
 
 const handleMajorChange = () => {
+    if (isInitialLoading.value) {
+        return;
+    }
+
     if (
         !filteredClassrooms.value.some(
             (classroom) => classroom.id === form.classroom_id,
@@ -418,7 +428,6 @@ watch(
     () => props.student,
     (newStudent) => {
         if (newStudent) {
-            // Try to recover enrollment from either snake_case or camelCase properties
             const currentEnrollment =
                 newStudent.current_enrollment ?? newStudent.current_enrollment;
 
@@ -426,27 +435,21 @@ watch(
             form.reset();
             form.clearErrors();
 
-            // Recover enrollment IDs from student properties or currentEnrollment relation
-            // School ID: from student.school_id OR currentEnrollment.classroom.major.school.id
             form.school_id = parseNullableId(
                 newStudent.school_id ??
                     currentEnrollment?.classroom?.major?.school?.id,
             );
-            // Major ID: from student.major_id OR currentEnrollment.classroom.major.id
             form.major_id = parseNullableId(
                 newStudent.major_id ?? currentEnrollment?.classroom?.major?.id,
             );
-            // Classroom ID: from student.classroom_id OR currentEnrollment.classroom_id
             form.classroom_id = parseNullableId(
                 newStudent.classroom_id ?? currentEnrollment?.classroom_id,
             );
-            // Academic Year ID: from student.academic_year_id OR currentEnrollment.academic_year_id
             form.academic_year_id = parseNullableId(
                 newStudent.academic_year_id ?? currentEnrollment?.academic_year_id,
             );
             form.gender_id = parseNullableId(newStudent.gender_id);
             form.religion_id = parseNullableId(newStudent.religion_id);
-            // Student Status ID: from student.student_status_id OR currentEnrollment.student_status_id
             form.student_status_id = parseNullableId(
                 newStudent.student_status_id ?? currentEnrollment?.student_status_id,
             );
@@ -567,8 +570,9 @@ watch(
                 : [];
         } else {
             form.reset();
-            resetDocumentFields();
+            form.clearErrors();
         }
+        
     },
     { immediate: true },
 );

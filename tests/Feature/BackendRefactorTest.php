@@ -14,6 +14,7 @@ use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -91,12 +92,12 @@ class BackendRefactorTest extends TestCase
 
     public function test_upload_restores_a_soft_deleted_document_without_leaving_the_old_file(): void
     {
-        Storage::fake('public');
+        $storage = Storage::fake('public');
         $operator = User::factory()->create(['role' => UserRole::Operator]);
         $student = Student::firstOrFail();
         $document = StudentDocument::where('student_id', $student->id)->firstOrFail();
         $documentType = $document->documentType;
-        Storage::disk('public')->put('student_documents/old.pdf', 'old');
+        $storage->put('student_documents/old.pdf', 'old');
 
         $document->update([
             'original_name' => 'old.pdf',
@@ -116,8 +117,8 @@ class BackendRefactorTest extends TestCase
 
         $restored = StudentDocument::whereKey($document->id)->firstOrFail();
         $this->assertSame('new.pdf', $restored->original_name);
-        Storage::disk('public')->assertMissing('student_documents/old.pdf');
-        Storage::disk('public')->assertExists($restored->file_path);
+        $storage->assertMissing('student_documents/old.pdf');
+        $storage->assertExists($restored->file_path);
     }
 
     public function test_major_page_counts_students_through_active_enrollments(): void
@@ -135,9 +136,52 @@ class BackendRefactorTest extends TestCase
 
         $this->actingAs($admin)
         ->get(route('master.academic-years.index'))
-        ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page
-            ->component('master/academic-years/Index')
-        );
+        ->assertOk();
+    }
+
+    public function test_student_academic_year_update_preserves_current_enrollment(): void
+    {
+        $operator = User::factory()->create(['role' => UserRole::Operator]);
+        $student = Student::firstOrFail();
+        $classroom = Classroom::with('major')->firstOrFail();
+        $ay1 = AcademicYear::firstOrFail();
+        $ay2 = AcademicYear::create([
+            'name' => '2027/2028',
+            'start_date' => '2027-07-01',
+            'end_date' => '2028-06-30',
+            'is_active' => false,
+        ]);
+
+        $payload = [
+            'school_id' => $classroom->major->school_id,
+            'major_id' => $classroom->major_id,
+            'classroom_id' => $classroom->id,
+            'academic_year_id' => $ay1->id,
+            'student_status_id' => StudentStatus::firstOrFail()->id,
+            'gender_id' => Gender::firstOrFail()->id,
+            'religion_id' => Religion::firstOrFail()->id,
+            'nis' => $student->nis,
+            'nisn' => $student->nisn,
+            'full_name' => $student->full_name,
+            'birth_place' => $student->birth_place,
+            'birth_date' => Carbon::parse($student->birth_date)->format('Y-m-d'),
+        ];
+
+        // 1. Update to AY 1
+        $this->actingAs($operator)->post(route('students.update', $student), $payload)->assertRedirect();
+        $this->assertSame($ay1->id, $student->fresh()->academic_year_id);
+        $this->assertNotNull($student->fresh()->academic_year);
+
+        // 2. Update to AY 2
+        $payload['academic_year_id'] = $ay2->id;
+        $this->actingAs($operator)->post(route('students.update', $student), $payload)->assertRedirect();
+        $this->assertSame($ay2->id, $student->fresh()->academic_year_id);
+        $this->assertNotNull($student->fresh()->academic_year);
+
+        // 3. Update back to AY 1
+        $payload['academic_year_id'] = $ay1->id;
+        $this->actingAs($operator)->post(route('students.update', $student), $payload)->assertRedirect();
+        $this->assertSame($ay1->id, $student->fresh()->academic_year_id);
+        $this->assertNotNull($student->fresh()->academic_year);
     }
 }

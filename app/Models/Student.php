@@ -172,8 +172,10 @@ class Student extends Model
     public function currentEnrollment(): HasOne
     {
         return $this->hasOne(StudentEnrollment::class)
-            ->whereNull('ended_at')
-            ->latestOfMany();
+            ->ofMany(
+                ['id' => 'max'],
+                fn ($query) => $query->whereNull('ended_at')
+            );
     }
 
     /**
