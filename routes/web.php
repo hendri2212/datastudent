@@ -21,7 +21,9 @@ use App\Http\Controllers\StudentHealthController;
 use App\Http\Controllers\StudentSocialController;
 use App\Http\Controllers\StudentStatusController;
 use App\Http\Controllers\StudentVerificationController;
+use App\Http\Controllers\StudentAccountController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Middleware\RedirectStudentsFromAdminPages;
 use Illuminate\Support\Facades\Route;
 
 // 1. ROUTE HALAMAN UTAMA (LANDING PAGE)
@@ -32,22 +34,24 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
     // POST route untuk file uploads - routes ke same update handler
     Route::post('/students/{student}', [StudentController::class, 'update']);
+    Route::get('/students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
+    Route::get('/students/{student}/documents/{document}/preview', [StudentDocumentController::class, 'preview'])->name('students.documents.preview');
+    Route::get('/student-education-histories/{studentEducationHistory}/certificate', [StudentEducationHistoryController::class, 'preview'])->name('student-education-histories.certificate');
+    Route::get('/student-education-histories/{studentEducationHistory}/certificate/download', [StudentEducationHistoryController::class, 'download'])->name('student-education-histories.certificate.download');
 });
 
 // 2. ROUTE APLIKASI UTAMA (MEMBUTUHKAN AUTHENTICATION)
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    Route::inertia('dashboard', 'Dashboard')->name('dashboard');
+    Route::inertia('dashboard', 'Dashboard')->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard');
 
     // ==========================================
     // ROUTE SISWA (AKSES UMUM UNTUK USER TERAUTENTIKASI)
     // ==========================================
-
-
     // ==========================================
     // ROUTE MANAGEMENT SISWA (KHUSUS ADMIN / OPERATOR)
     // ==========================================
-    Route::middleware('can:manage-students')->group(function () {
+    Route::middleware([RedirectStudentsFromAdminPages::class, 'can:manage-students'])->group(function () {
         // Custom Actions untuk Soft Deletes Siswa
         Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
         Route::delete('/students/{id}/force-delete', [StudentController::class, 'forceDelete'])->middleware('can:force-delete')->name('students.force-delete');
@@ -56,6 +60,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/students', [StudentController::class, 'index'])->name('students.index');
         Route::delete('/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
         Route::get('/students/{student}/detail', [StudentController::class, 'detail'])->name('students.detail');
+        
+        // Route Untuk Mengelola Akun Siswa (Student Accounts)
+        Route::get('/student-accounts', [StudentAccountController::class, 'index'])->name('student-accounts.index');
+        Route::post('/students/{student}/create-account', [StudentAccountController::class, 'createAccount'])->name('students.create-account');
+        Route::post('/student-accounts/bulk-create', [StudentAccountController::class, 'bulkCreateAccounts'])->name('student-accounts.bulk-create');
 
         // Verifikasi Siswa
         Route::post('/students/{student}/verify', [StudentVerificationController::class, 'verify'])->middleware('can:verify-students')->name('students.verify');
@@ -76,8 +85,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/student-socials/{studentSocial}', [StudentSocialController::class, 'destroy'])->name('student-socials.destroy');
 
         // Dokumen Siswa
-        Route::get('/students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
-        Route::get('/students/{student}/documents/{document}/preview', [StudentDocumentController::class, 'preview'])->name('students.documents.preview');
         Route::get('/students/{student}/documents/{document}/download', [StudentDocumentController::class, 'download'])->name('students.documents.download');
         Route::post('/students/{student}/documents/{document}/verify', [StudentDocumentController::class, 'verify'])->middleware('can:verify-students')->name('students.documents.verify');
         Route::delete('/students/{student}/documents/{document}', [StudentDocumentController::class, 'destroy'])->name('students.documents.destroy');
@@ -98,15 +105,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ==========================================
     // ROUTE AKADEMIK (KELAS & JURUSAN)
     // ==========================================
-    Route::post('/classrooms/{id}/restore', [ClassroomController::class, 'restore'])->middleware('can:manage-academics')->name('classrooms.restore');
-    Route::delete('/classrooms/{id}/force-delete', [ClassroomController::class, 'forceDelete'])->middleware('can:force-delete')->name('classrooms.force-delete');
+    Route::post('/classrooms/{id}/restore', [ClassroomController::class, 'restore'])->middleware([RedirectStudentsFromAdminPages::class, 'can:manage-academics'])->name('classrooms.restore');
+    Route::delete('/classrooms/{id}/force-delete', [ClassroomController::class, 'forceDelete'])->middleware([RedirectStudentsFromAdminPages::class, 'can:manage-academics', 'can:force-delete'])->name('classrooms.force-delete');
     Route::resource('classrooms', ClassroomController::class)
         ->only(['index', 'store', 'update', 'destroy'])
-        ->middleware('can:manage-academics');
+        ->middleware([RedirectStudentsFromAdminPages::class, 'can:manage-academics']);
 
     Route::resource('majors', MajorController::class)
         ->only(['index', 'store', 'update', 'destroy'])
-        ->middleware('can:manage-academics');
+        ->middleware([RedirectStudentsFromAdminPages::class, 'can:manage-academics']);
 
     // ==========================================
     // ROUTE MASTER DATA
@@ -126,7 +133,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ROUTE EXPORT DATA SISWA (EXCEL)
     // ==========================================
 
-    Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
+    Route::get('/students/export', [StudentController::class, 'export'])->middleware([RedirectStudentsFromAdminPages::class, 'can:manage-students'])->name('students.export');
 
     // ==========================================
     // API / JSON RESOURCE ROUTES

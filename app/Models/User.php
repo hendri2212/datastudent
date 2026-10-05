@@ -60,4 +60,9 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->role === UserRole::Operator;
     }
+
+    public function isStudent(): bool
+    {
+        return $this->role === UserRole::Student;
+    }
 }

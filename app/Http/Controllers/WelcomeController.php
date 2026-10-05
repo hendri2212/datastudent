@@ -35,19 +35,32 @@ class WelcomeController extends Controller
         protected StudentDocumentService $documentService
     ) {}
 
-    public function index(Request $request): Response|RedirectResponse
+    public function index(Request $request): Response
     {
         $user = $request->user();
+        $student = null;
 
-        if ($user && $this->isStudentRole($user)) {
-            if (Student::where('user_id', $user->id)->exists()) {
-                return redirect()->route('dashboard');
+        if ($user) {
+            // Cari data siswa berdasarkan user_id atau email user
+            $student = Student::with($this->studentDetailRelations())
+                ->where(function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                    if (! empty($user->email)) {
+                        $query->orWhere('email', $user->email);
+                    }
+                })
+                ->first();
+
+            // Jika siswa ditemukan via email namun belum terhubung ke user_id, tautkan secara otomatis
+            if ($student && ! $student->user_id) {
+                $student->update(['user_id' => $user->id]);
             }
         }
 
         return Inertia::render('Welcome', array_merge(
             [
-                'hasRegistered' => false,
+                'student' => $student,
+                'hasRegistered' => (bool) $student,
             ], 
             $this->masterData() 
         ));
@@ -58,8 +71,16 @@ class WelcomeController extends Controller
         $user = $request->user();
 
         if ($user && $this->isStudentRole($user)) {
-            if (Student::where('user_id', $user->id)->exists()) {
-                return redirect()->route('dashboard')->with('error', 'Anda sudah mendaftarkan data siswa.');
+            $existing = Student::where('user_id', $user->id)
+                ->orWhere(function ($q) use ($user) {
+                    if (! empty($user->email)) {
+                        $q->where('email', $user->email);
+                    }
+                })
+                ->exists();
+
+            if ($existing) {
+                return redirect()->route('home')->with('error', 'Anda sudah mendaftarkan data siswa.');
             }
         }
 
@@ -70,15 +91,19 @@ class WelcomeController extends Controller
         $this->uploadFromForm($request, $student);
 
         if ($user && $this->isStudentRole($user)) {
-            return redirect()->route('dashboard')->with('success', 'Pendaftaran berhasil! Data kamu telah kami terima.');
+            return redirect()->route('home')->with('success', 'Pendaftaran berhasil! Data kamu telah kami terima.');
         }
 
         return redirect()->back()->with('success', 'Data siswa berhasil ditambahkan.');
     }
 
-   private function isStudentRole(?User $user): bool
+    private function isStudentRole(?User $user): bool
     {
-        return isset($user->role) && in_array($user->role, ['siswa', 'student']);
+        if (! $user) {
+            return false;
+        }
+
+        return $user->isStudent() || in_array($user->role->value, ['siswa', 'student', \App\Enums\UserRole::Student], true);
     }
     private function uploadFromForm(Request $request, Student $student): void
 {
@@ -100,7 +125,9 @@ class WelcomeController extends Controller
                 student: $student,
                 documentTypeId: (int) $request->input('document_type_id'),
                 file: $docFile,
-                notes: is_string($request->input('new_document_name')) ? $request->input('new_document_name') : null,
+                notes: is_string($request->input('new_document_notes'))
+                    ? $request->input('new_document_notes')
+                    : (is_string($request->input('new_document_name')) ? $request->input('new_document_name') : null),
                 uploadedBy: $request->user()?->id,
                 disk: 'public'
             );
@@ -173,6 +200,35 @@ class WelcomeController extends Controller
             'educationLevels'   => EducationLevel::select('id', 'name')->get(),
             'socialPlatforms'   => SocialPlatform::select('id', 'name')->get(),
             'documentTypes'     => DocumentType::select('id', 'name')->get(),
+        ];
+    }
+
+    /** @return list<string> */
+    private function studentDetailRelations(): array
+    {
+        return [
+            'user:id,name,email,role',
+            'citizenship:id,name',
+            'gender:id,code,name',
+            'religion:id,name',
+            'verifier:id,name',
+            'currentEnrollment.classroom.major.school',
+            'currentEnrollment.academicYear:id,name,is_active,start_date,end_date',
+            'currentEnrollment.status:id,name',
+            'family.fatherOccupation:id,name',
+            'family.fatherIncomeCategory:id,name',
+            'family.motherOccupation:id,name',
+            'family.motherIncomeCategory:id,name',
+            'family.guardianOccupation:id,name',
+            'family.guardianIncomeCategory:id,name',
+            'family.relationshipType:id,name',
+            'educationHistories.educationLevel:id,name',
+            'health.bloodType:id,name',
+            'achievements',
+            'documents.documentType:id,name',
+            'documents.verifier:id,name',
+            'socials.socialPlatform:id,name,icon,base_url',
+            'violations',
         ];
     }
 }

@@ -48,6 +48,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 const page = usePage();
 const auth = computed(() => page.props.auth);
+const canOpenAdminPages = computed(() => Boolean((auth.value as any)?.permissions?.manageStudents || (auth.value as any)?.permissions?.manageAcademics));
+const visibleMainNavItems = computed(() => canOpenAdminPages.value ? mainNavItems : []);
 const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
 
 const activeItemStyles =
@@ -105,7 +107,7 @@ const rightNavItems: NavItem[] = [
                             >
                                 <nav class="-mx-3 space-y-1">
                                     <Link
-                                        v-for="item in mainNavItems"
+                                        v-for="item in visibleMainNavItems"
                                         :key="item.title"
                                         :href="item.href"
                                         class="flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent"
@@ -146,7 +148,7 @@ const rightNavItems: NavItem[] = [
                     </Sheet>
                 </div>
 
-                <Link :href="dashboard()" class="flex items-center gap-x-2">
+                <Link :href="canOpenAdminPages ? dashboard() : '/'" class="flex items-center gap-x-2">
                     <AppLogo />
                 </Link>
 
@@ -157,7 +159,7 @@ const rightNavItems: NavItem[] = [
                             class="flex h-full items-stretch space-x-2"
                         >
                             <NavigationMenuItem
-                                v-for="(item, index) in mainNavItems"
+                                v-for="(item, index) in visibleMainNavItems"
                                 :key="index"
                                 class="relative flex h-full items-center"
                             >

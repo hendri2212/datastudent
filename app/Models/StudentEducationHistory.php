@@ -5,10 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class StudentEducationHistory extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::deleting(function (StudentEducationHistory $history): void {
+            if ($history->certificate && Storage::disk('local')->exists($history->certificate)) {
+                Storage::disk('local')->delete($history->certificate);
+            }
+        });
+    }
 
     protected $table = 'student_education_history';
 

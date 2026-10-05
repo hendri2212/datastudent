@@ -91,11 +91,13 @@ class StudentDocumentService
     public function delete(StudentDocument $document): void
     {
         $path = $document->file_path;
-        $disk = $document->disk ?: 'private';
+        $disk = $document->disk && config("filesystems.disks.{$document->disk}")
+            ? $document->disk
+            : 'public';
 
         DB::transaction(fn () => $document->delete());
 
-        if ($path) {
+        if ($path && Storage::disk($disk)->exists($path)) {
             Storage::disk($disk)->delete($path);
         }
     }

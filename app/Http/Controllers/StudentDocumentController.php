@@ -63,10 +63,20 @@ class StudentDocumentController extends Controller
     /**
      * Preview berkas dokumen di browser tab baru (PDF / Gambar).
      */
-    public function preview(Student $student, StudentDocument $document): BinaryFileResponse
+    public function preview(Request $request, Student $student, StudentDocument $document): BinaryFileResponse
     {
         if ($document->student_id !== $student->id) {
             abort(404, 'Dokumen tidak ditemukan untuk siswa ini.');
+        }
+
+        $user = $request->user();
+        $isStudentOwner = $user
+            && ($student->user_id === $user->id
+                || (filled($user->email) && filled($student->email)
+                    && strcasecmp((string) $user->email, (string) $student->email) === 0));
+
+        if (! $user || (! $user->can('manage-students') && ! $isStudentOwner)) {
+            abort(403, 'Anda tidak memiliki akses ke dokumen ini.');
         }
 
         $disk = $document->disk ?? 'private';

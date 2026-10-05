@@ -7,10 +7,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Storage;
 
 class Student extends Model
 {
     use SoftDeletes;
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Student $student) {
+            if ($student->isForceDeleting()) {
+                $student->deleteAssociatedFiles();
+            }
+        });
+    }
 
     protected $guarded = ['id'];
 
@@ -246,5 +256,60 @@ class Student extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(StudentDocument::class);
+    }
+
+    /**
+     * Memeriksa apakah data siswa telah diverifikasi
+     */
+    public function isVerified(): bool
+    {
+        return $this->verified_at !== null;
+    }
+
+    /**
+     * Hapus seluruh berkas fisik terkait siswa (Foto profil, sertifikat prestasi, berkas dokumen)
+     */
+    public function deleteAssociatedFiles(): void
+    {
+        // 1. Foto Profil Siswa
+        if ($this->photo && Storage::disk('public')->exists($this->photo)) {
+            Storage::disk('public')->delete($this->photo);
+        }
+        Storage::disk('public')->deleteDirectory("student_photos/{$this->id}");
+        Storage::disk('public')->deleteDirectory("students/{$this->id}/photo");
+        Storage::disk('public')->deleteDirectory("students/{$this->id}");
+
+        // 2. Sertifikat Prestasi Siswa
+        $achievements = $this->achievements()->withTrashed()->get();
+        foreach ($achievements as $achievement) {
+            if ($achievement->certificate && Storage::disk('public')->exists($achievement->certificate)) {
+                Storage::disk('public')->delete($achievement->certificate);
+            }
+        }
+        Storage::disk('public')->deleteDirectory("certificates/{$this->id}");
+
+        // 3. Berkas ijazah pada riwayat pendidikan
+        $educationHistories = $this->educationHistories()->withTrashed()->get();
+        foreach ($educationHistories as $history) {
+            if ($history->certificate && Storage::disk('local')->exists($history->certificate)) {
+                Storage::disk('local')->delete($history->certificate);
+            }
+        }
+        Storage::disk('local')->deleteDirectory("education_certificates/{$this->id}");
+
+        // 4. Berkas Dokumen Siswa
+        $documents = $this->documents()->withTrashed()->get();
+        foreach ($documents as $document) {
+            if ($document->file_path) {
+                $disk = $document->disk && config("filesystems.disks.{$document->disk}")
+                    ? $document->disk
+                    : 'public';
+
+                if (Storage::disk($disk)->exists($document->file_path)) {
+                    Storage::disk($disk)->delete($document->file_path);
+                }
+            }
+        }
+        Storage::disk('public')->deleteDirectory("student_documents/{$this->id}");
     }
 }

@@ -74,6 +74,7 @@ import type {
     EducationLevel,
     SocialPlatform,
     StudentDocument,
+    StudentEducationHistory,
     PaginatedData,
     StudentFilters,
     StudentStatistics,
@@ -431,16 +432,18 @@ const handleForceDelete = (student: Student) => {
 };
 
 // Clipboard Helpers
-const copyToClipboard = (text: string | undefined | null, key: string) => {
+const copyToClipboard = (text: string | undefined | null, key?: string | number) => {
     if (!text) {
         return;
     }
 
     navigator.clipboard.writeText(text).then(() => {
-        copiedKey.value = key;
-        setTimeout(() => {
-            copiedKey.value = null;
-        }, 2000);
+        if (key !== undefined) {
+            copiedKey.value = String(key);
+            setTimeout(() => {
+                copiedKey.value = null;
+            }, 2000);
+        }
     });
 };
 
@@ -512,6 +515,21 @@ const formatSocialUrl = (
     return '#';
 };
 
+// Helper WhatsApp Link Formatter
+const formatWaLink = (phone: string | number | null | undefined): string => {
+    if (!phone) {
+return '#'
+}
+
+    let cleaned = phone.toString().replace(/\D/g, '')
+
+    if (cleaned.startsWith('0')) {
+        cleaned = '62' + cleaned.slice(1)
+    }
+
+    return `https://wa.me/${cleaned}`
+}
+
 const getDocumentPreviewUrl = (doc: StudentDocument) => {
     if (!selectedStudent.value?.id || !doc.id) {
         return '#';
@@ -533,6 +551,12 @@ const getDocumentDownloadUrl = (doc: StudentDocument) => {
         document: doc.id,
     });
 };
+
+const getEducationCertificatePreviewUrl = (history: StudentEducationHistory) =>
+    history.id ? `/student-education-histories/${history.id}/certificate` : '#';
+
+const getEducationCertificateDownloadUrl = (history: StudentEducationHistory) =>
+    history.id ? `/student-education-histories/${history.id}/certificate/download` : '#';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const shareDocument = async (doc: StudentDocument) => {
@@ -1580,32 +1604,29 @@ const shareDocument = async (doc: StudentDocument) => {
                                     ><Phone class="h-3 w-3" /> No. Telepon /
                                     WhatsApp</span
                                 >
-                                <span
-                                    class="font-semibold text-neutral-800 dark:text-neutral-200"
-                                    >{{ selectedStudent.phone || '-' }}</span
-                                >
+                            <a
+                                v-if="selectedStudent.phone"
+                                :href="formatWaLink(selectedStudent.phone)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="font-semibold text-neutral-800 hover:text-emerald-600 hover:underline dark:text-neutral-200 dark:hover:text-emerald-400"
+                            >
+                            {{ selectedStudent.phone }}
+                            <span class="text-xs text-emerald-600 dark:text-emerald-400 font-bold">(Buka Di WA)</span>
+                            </a>
+                            <span v-else class="font-semibold text-neutral-800 dark:text-neutral-200">-</span>
                             </div>
                             <Button
                                 v-if="selectedStudent.phone"
                                 variant="ghost"
                                 size="icon"
                                 class="h-6 w-6"
-                                @click="
-                                    copyToClipboard(
-                                        selectedStudent.phone,
-                                        'phone',
-                                    )
-                                "
+                                @click="copyToClipboard(selectedStudent.phone, 'phone')"
                             >
-                                <Check
-                                    v-if="copiedKey === 'phone'"
-                                    class="h-3.5 w-3.5 text-emerald-600"
-                                /><Copy
-                                    v-else
-                                    class="h-3.5 w-3.5 text-neutral-400"
-                                />
+                                <Check v-if="copiedKey === 'phone'" class="h-3.5 w-3.5 text-emerald-600" />
+                                <Copy v-else class="h-3.5 w-3.5 text-neutral-400" />
                             </Button>
-                        </div>
+                            </div>
                         <div
                             class="flex items-center justify-between rounded-lg border p-3 dark:border-neutral-800"
                         >
@@ -2028,6 +2049,23 @@ const shareDocument = async (doc: StudentDocument) => {
                                     }}</strong></span
                                 >
                             </div>
+                            <div v-if="edu.certificate" class="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                                <span class="mr-auto text-[11px] text-neutral-500">Ijazah / dokumen kelulusan</span>
+                                <a
+                                    :href="getEducationCertificatePreviewUrl(edu)"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                >
+                                    <Eye class="mr-1.5 h-3.5 w-3.5" /> Preview
+                                </a>
+                                <a
+                                    :href="getEducationCertificateDownloadUrl(edu)"
+                                    class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                                >
+                                    <Download class="mr-1.5 h-3.5 w-3.5" /> Unduh
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2095,59 +2133,59 @@ const shareDocument = async (doc: StudentDocument) => {
                 </div>
 
                 <div
-    v-if="selectedStudent.achievements?.length"
-    class="space-y-3"
->
-    <h4
-        class="flex items-center gap-1.5 border-b pb-1 text-xs font-bold tracking-wider text-neutral-500 uppercase"
-    >
-        <Trophy class="h-4 w-4 text-amber-500" /> Prestasi Siswa
-    </h4>
-    <div class="space-y-2 text-xs">
-        <div
-            v-for="(ach, index) in selectedStudent.achievements"
-            :key="ach.id || index"
-            class="rounded-lg border bg-amber-50/20 p-3 dark:border-neutral-800 dark:bg-amber-950/10"
-        >
-            <div class="flex items-center justify-between">
-                <p
-                    class="font-bold text-neutral-900 dark:text-neutral-100"
+                    v-if="selectedStudent.achievements?.length"
+                    class="space-y-3"
                 >
-                    {{ ach.title }}
-                </p>
-                <Badge
-                    variant="outline"
-                    class="border-amber-300 bg-amber-100 text-amber-800"
-                    >Peringkat: {{ ach.rank || '-' }}</Badge
-                >
-            </div>
-            <p class="mt-1 text-[11px] text-neutral-500">
-                Penyelenggara: {{ ach.organizer || '-' }} |
-                Tingkat: {{ ach.level || '-' }} | Tanggal:
-                {{ ach.achievement_date || '-' }}
-            </p>
-            <p
-                v-if="ach.description"
-                class="mt-1 text-[11px] text-neutral-600 dark:text-neutral-300"
-            >
-                {{ ach.description }}
-            </p>
+                    <h4
+                        class="flex items-center gap-1.5 border-b pb-1 text-xs font-bold tracking-wider text-neutral-500 uppercase"
+                    >
+                        <Trophy class="h-4 w-4 text-amber-500" /> Prestasi Siswa
+                    </h4>
+                    <div class="space-y-2 text-xs">
+                        <div
+                            v-for="(ach, index) in selectedStudent.achievements"
+                            :key="ach.id || index"
+                            class="rounded-lg border bg-amber-50/20 p-3 dark:border-neutral-800 dark:bg-amber-950/10"
+                        >
+                            <div class="flex items-center justify-between">
+                                <p
+                                    class="font-bold text-neutral-900 dark:text-neutral-100"
+                                >
+                                    {{ ach.title }}
+                                </p>
+                                <Badge
+                                    variant="outline"
+                                    class="border-amber-300 bg-amber-100 text-amber-800"
+                                    >Peringkat: {{ ach.rank || '-' }}</Badge
+                                >
+                            </div>
+                            <p class="mt-1 text-[11px] text-neutral-500">
+                                Penyelenggara: {{ ach.organizer || '-' }} |
+                                Tingkat: {{ ach.level || '-' }} | Tanggal:
+                                {{ ach.achievement_date || '-' }}
+                            </p>
+                            <p
+                                v-if="ach.description"
+                                class="mt-1 text-[11px] text-neutral-600 dark:text-neutral-300"
+                            >
+                                {{ ach.description }}
+                            </p>
 
-            <!-- Tambahan: Tautan Lihat/Unduh Sertifikat -->
-            <div v-if="ach.certificate" class="mt-2 border-t pt-2 dark:border-neutral-800">
-                <a
-                    :href="`/storage/${ach.certificate}`"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 hover:underline text-[11px]"
-                >
-                    <FileText class="h-3.5 w-3.5" />
-                    <span>Lihat Sertifikat / Piagam</span>
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
+                            <!-- Tambahan: Tautan Lihat/Unduh Sertifikat -->
+                            <div v-if="ach.certificate" class="mt-2 border-t pt-2 dark:border-neutral-800">
+                                <a
+                                    :href="`/storage/${ach.certificate}`"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 hover:underline text-[11px]"
+                                >
+                                    <FileText class="h-3.5 w-3.5" />
+                                    <span>Lihat Sertifikat / Piagam</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div
                     v-if="selectedStudent.violations?.length"
@@ -2202,21 +2240,36 @@ const shareDocument = async (doc: StudentDocument) => {
                             class="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between dark:border-neutral-800"
                         >
                             <div>
-                                <p
-                                    class="font-bold text-neutral-900 dark:text-neutral-100"
-                                >
-                                    {{
-                                        doc.original_name ||
-                                        doc.stored_name ||
-                                        'Dokumen'
-                                    }}
+                                <p class="font-bold text-neutral-900 dark:text-neutral-100">
+                                    {{ doc.original_name || doc.stored_name || 'Dokumen' }}
                                 </p>
                                 <p class="text-[11px] text-neutral-500">
-                                    {{
-                                        doc.document_type?.name || 'Tipe Berkas'
-                                    }}
+                                    {{ doc.document_type?.name || 'Tipe Berkas' }}
                                     • {{ doc.mime_type || '-' }}
                                 </p>
+                                <div
+                                    v-if="doc.notes"
+                                    class="mt-1 flex items-center gap-1.5 text-xs text-neutral-700 dark:text-neutral-300"
+                                >
+                                    <span class="text-[11px] font-medium text-neutral-500">Ket:</span>
+                                    <span class="rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] dark:bg-neutral-800">{{ doc.notes }}</span>
+                                    <button
+                                        type="button"
+                                        @click="copyToClipboard(doc.notes, 'doc_notes_' + doc.id)"
+                                        class="inline-flex items-center gap-0.5 text-[11px] text-blue-600 hover:underline"
+                                        title="Salin keterangan"
+                                    >
+                                        <Check
+                                            v-if="copiedKey === 'doc_notes_' + doc.id"
+                                            class="h-3 w-3 text-emerald-600"
+                                        />
+                                        <Copy
+                                            v-else
+                                            class="h-3 w-3"
+                                        />
+                                        <span>{{ copiedKey === 'doc_notes_' + doc.id ? 'Tersalin' : 'Salin' }}</span>
+                                    </button>
+                                </div>
                             </div>
                             <div class="flex items-center gap-2">
                                 <a

@@ -8,11 +8,57 @@ use Illuminate\Validation\Rule;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Validator;
 
+use App\Enums\UserRole;
+
 class StudentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('manage-students') || $this->user() !== null;
+        $user = $this->user();
+        if (! $user) {
+            return false;
+        }
+
+        $student = $this->route('student');
+        if (! ($student instanceof Student) && is_numeric($student)) {
+            $student = Student::find($student);
+        }
+
+        if ($student instanceof Student) {
+            $isStudentRole = $user->isStudent() || $user->role === UserRole::Student || in_array($user->role->value, ['student', 'siswa'], true);
+
+            // Akun siswa hanya boleh mengubah data yang terhubung ke akun/emailnya.
+            $emailMatches = filled($user->email)
+                && filled($student->email)
+                && strcasecmp((string) $student->email, (string) $user->email) === 0;
+
+            if ($isStudentRole && $student->user_id !== $user->id && ! $emailMatches) {
+                return false;
+            }
+
+            // Ketika data siswa sudah diverifikasi, role siswa tidak bisa update data, tapi role admin tetap bisa
+            if ($student->verified_at !== null && $isStudentRole) {
+                return false;
+            }
+        }
+
+        return $user->can('manage-students') || $user->isStudent() || $user->isAdmin();
+    }
+
+    protected function failedAuthorization()
+    {
+        $user = $this->user();
+        $student = $this->route('student');
+        if (! ($student instanceof Student) && is_numeric($student)) {
+            $student = Student::find($student);
+        }
+
+        $isStudentRole = $user && ($user->isStudent() || $user->role === UserRole::Student || in_array($user->role->value, ['student', 'siswa'], true));
+        if ($student instanceof Student && $student->verified_at !== null && $isStudentRole) {
+            throw new \Illuminate\Auth\Access\AuthorizationException('Data siswa sudah diverifikasi sehingga tidak dapat diubah oleh siswa.');
+        }
+
+        parent::failedAuthorization();
     }
 
     /** @return array<string, mixed> */
@@ -83,6 +129,7 @@ class StudentRequest extends FormRequest
             'education_histories.*.final_score' => ['nullable', 'numeric', 'between:0,100'],
             'education_histories.*.is_graduated' => ['boolean'],
             'education_histories.*.notes' => ['nullable', 'string'],
+            'education_histories.*.certificate' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
 
             'socials' => ['nullable', 'array'],
             'socials.*.id' => ['nullable', 'integer'],
@@ -132,6 +179,7 @@ class StudentRequest extends FormRequest
             'document_type_id' => ['nullable', 'required_with:new_document_file', 'integer', 'exists:document_types,id'],
             'new_document_name' => ['nullable', 'string', 'max:255'],
             'new_document_file' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'new_document_notes' => ['nullable', 'string', 'max:500'],
         ];
     }
 

@@ -80,6 +80,7 @@ export interface StudentEducationHistory {
     final_score?: number;
     is_graduated?: boolean;
     notes?: string;
+    certificate?: string | null;
     education_level?: EducationLevel;
 }
 
@@ -211,6 +212,8 @@ export interface Student {
     documents?: StudentDocument[];
     photo?: string | null;
     photo_url?: string | null;
+    user_id?: number | null;
+    user?: { id: number; name: string; email: string; role?: string } | null;
 }
 
 export interface StudentStatistics {
@@ -248,12 +251,13 @@ export interface PaginatedData<T> {
 
 export interface EducationHistoryForm extends Omit<
     StudentEducationHistory,
-    'education_level_id' | 'entry_year' | 'graduation_year' | 'final_score'
+    'education_level_id' | 'entry_year' | 'graduation_year' | 'final_score' | 'certificate'
 > {
     education_level_id: number | null;
     entry_year: number | string;
     graduation_year: number | string;
     final_score: number | string;
+    certificate?: string | File | null;
 }
 
 export interface AchievementForm extends Omit<StudentAchievement, 'rank'> {

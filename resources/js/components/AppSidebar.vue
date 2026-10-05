@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
     FolderGit2,
     GraduationCap,
     LayoutGrid,
     School,
+    UserCheck,
     Users,
 } from '@lucide/vue';
+import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -48,7 +50,27 @@ const mainNavItems: NavItem[] = [
         href: studentsIndex(),
         icon: Users,
     },
+    {
+        title: 'Akun Siswa',
+        href: '/student-accounts',
+        icon: UserCheck,
+    },
 ];
+
+const page = usePage();
+const canManageStudents = computed(() => Boolean((page.props as any).auth?.permissions?.manageStudents));
+const canManageAcademics = computed(() => Boolean((page.props as any).auth?.permissions?.manageAcademics));
+const visibleMainNavItems = computed(() => mainNavItems.filter((item) => {
+    if (item.title === 'Dashboard') {
+return canManageStudents.value || canManageAcademics.value;
+}
+
+    if (item.title === 'Jurusan' || item.title === 'Kelas') {
+return canManageAcademics.value;
+}
+
+    return canManageStudents.value;
+}));
 
 const footerNavItems: NavItem[] = [
     {
@@ -70,7 +92,7 @@ const footerNavItems: NavItem[] = [
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
-                        <Link :href="dashboard()">
+                        <Link :href="canManageStudents || canManageAcademics ? dashboard() : '/'">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
@@ -79,7 +101,7 @@ const footerNavItems: NavItem[] = [
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <NavMain :items="visibleMainNavItems" />
         </SidebarContent>
 
         <SidebarFooter>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useForm, router } from '@inertiajs/vue3';
+import { useForm, router, usePage } from '@inertiajs/vue3';
 import {
     Loader2,
     User,
@@ -12,6 +12,8 @@ import {
     Plus,
     Trash2,
     Shield,
+    Eye,
+    X,
 } from 'lucide-vue-next';
 import { ref, watch, computed } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -71,6 +73,16 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits(['close', 'saved']);
+
+const page = usePage();
+const authUser = computed(() => (page.props as any).auth?.user);
+const isStudentUser = computed(() => {
+    const role = authUser.value?.role;
+
+    return role === 'student' || role === 'siswa';
+});
+const isStudentVerified = computed(() => Boolean(props.student?.verified_at));
+const isReadOnlyForStudent = computed(() => isStudentUser.value && isStudentVerified.value);
 
 const activeTab = ref('biodata');
 
@@ -136,6 +148,7 @@ const form = useForm({
 
     // File Document
     new_document_name: '',
+    new_document_notes: '',
     new_document_file: null as File | null,
     photo_file: null as File | null,
 });
@@ -179,6 +192,7 @@ const photoPosition = ref({ x: 50, y: 50 });
 const photoZoom = ref(100);
 const photoCacheBuster = ref(Date.now());
 const isPhotoCropOpen = ref(false);
+const educationFilePreview = ref<{ url: string; title: string; isPdf: boolean } | null>(null);
 const cropDrag = ref<{
     startX: number;
     startY: number;
@@ -189,6 +203,7 @@ const cropDrag = ref<{
 const resetDocumentFields = () => {
     form.new_document_file = null;
     form.new_document_name = '';
+    form.new_document_notes = '';
     form.document_type_id = null;
 };
 
@@ -212,6 +227,50 @@ const resetPhotoField = () => {
 const handleDocumentFileChange = (event: Event) => {
     form.new_document_file =
         (event.target as HTMLInputElement).files?.[0] ?? null;
+};
+
+const handleEducationCertificateChange = (event: Event, index: number) => {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+
+    if (form.education_histories[index]) {
+form.education_histories[index].certificate = file;
+}
+};
+
+const isEducationCertificateFile = (file: unknown): file is File => file instanceof File;
+const openEducationCertificatePreview = (certificate: unknown, historyId?: number) => {
+    let url: string;
+    let mimeType = '';
+
+    if (certificate instanceof File) {
+        url = URL.createObjectURL(certificate);
+        mimeType = certificate.type;
+    } else if (typeof certificate === 'string' && historyId) {
+        url = `/student-education-histories/${historyId}/certificate`;
+        mimeType = certificate.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/*';
+    } else {
+        return;
+    }
+
+    educationFilePreview.value = {
+        url,
+        title: 'Ijazah / dokumen pendidikan',
+        isPdf: mimeType.includes('pdf'),
+    };
+};
+
+const closeEducationCertificatePreview = () => {
+    if (educationFilePreview.value?.url.startsWith('blob:')) {
+URL.revokeObjectURL(educationFilePreview.value.url);
+}
+
+    educationFilePreview.value = null;
+};
+
+const preventDialogDismissDuringCertificatePreview = (event: Event) => {
+    if (educationFilePreview.value) {
+event.preventDefault();
+}
 };
 
 const createImage = (src: string) =>
@@ -706,6 +765,7 @@ const handleClose = () => {
     }
 
     form.clearErrors();
+    closeEducationCertificatePreview();
     activeTab.value = 'biodata';
     resetDocumentFields();
     resetPhotoField();
@@ -713,6 +773,12 @@ const handleClose = () => {
 };
 
 const handleSubmit = async () => {
+    if (isReadOnlyForStudent.value) {
+        alert('Data siswa sudah diverifikasi sehingga tidak dapat diubah oleh siswa.');
+
+        return;
+    }
+
     if (isDocumentTypeExists.value && form.new_document_file) {
         if (
             !confirm(
@@ -798,6 +864,7 @@ const handleSubmit = async () => {
             entry_year: parseNullableNumber(edu.entry_year),
             graduation_year: parseNullableNumber(edu.graduation_year),
             final_score: edu.final_score !== '' ? edu.final_score : null,
+            certificate: edu.certificate instanceof File ? edu.certificate : null,
         })),
 
         socials: data.socials.map((soc) => ({
@@ -816,6 +883,8 @@ const handleSubmit = async () => {
             ...vio,
             point: parseNullableNumber(vio.point),
             violation_date: vio.violation_date || null,
+
+        new_document_notes: data.new_document_notes,
         })),
     }));
 
@@ -864,6 +933,8 @@ const handleSubmit = async () => {
 <template>
     <Dialog :open="props.show" @update:open="(val) => !val && handleClose()">
         <DialogContent
+            @interact-outside="preventDialogDismissDuringCertificatePreview"
+            @escape-key-down="preventDialogDismissDuringCertificatePreview"
             class="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-4xl"
         >
             <DialogHeader
@@ -2057,6 +2128,28 @@ const handleSubmit = async () => {
                                 >
                             </div>
                         </div>
+
+                        <div class="space-y-2">
+                            <Label :for="`education-certificate-${index}`" class="text-xs">Foto / PDF Ijazah atau Dokumen Kelulusan (maks. 5MB)</Label>
+                            <Input
+                                :id="`education-certificate-${index}`"
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                                class="text-sm"
+                                @change="(event: Event) => handleEducationCertificateChange(event, index)"
+                            />
+                            <Button
+                                v-if="isEducationCertificateFile(edu.certificate) || (typeof edu.certificate === 'string' && edu.certificate)"
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                class="h-8 text-xs"
+                                @click="openEducationCertificatePreview(edu.certificate, edu.id)"
+                            >
+                                <Eye class="mr-1 h-3.5 w-3.5" />
+                                {{ isEducationCertificateFile(edu.certificate) ? 'Lihat berkas terpilih' : 'Lihat berkas tersimpan' }}
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -2363,7 +2456,7 @@ const handleSubmit = async () => {
                                 >Keterangan / Nama Dokumen</Label
                             >
                             <Input
-                                v-model="form.new_document_name"
+                                v-model="form.new_document_notes"
                                 placeholder="Misal: Ijazah SMP, KK, Akta"
                                 class="text-sm"
                             />
@@ -2435,15 +2528,33 @@ const handleSubmit = async () => {
                         @click="handleClose"
                         >Batal</Button
                     >
-                    <Button type="submit" :disabled="form.processing">
+                    <Button type="submit" :disabled="form.processing || isReadOnlyForStudent">
                         <Loader2
                             v-if="form.processing"
                             class="mr-2 h-4 w-4 animate-spin"
                         />
-                        <span>Simpan Data</span>
+                        <span v-if="isReadOnlyForStudent">Data Terverifikasi (Terkunci)</span>
+                        <span v-else>Simpan Data</span>
                     </Button>
-                </DialogFooter>
+        </DialogFooter>
             </form>
         </DialogContent>
+        <div
+            v-if="educationFilePreview"
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            @click.self="closeEducationCertificatePreview"
+            @keydown.esc="closeEducationCertificatePreview"
+        >
+            <section class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-modal="true" :aria-label="educationFilePreview.title">
+                <header class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
+                    <h2 class="truncate text-sm font-semibold">{{ educationFilePreview.title }}</h2>
+                    <button type="button" class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau" @click="closeEducationCertificatePreview"><X class="h-4 w-4" /></button>
+                </header>
+                <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-100 p-3 dark:bg-neutral-950">
+                    <iframe v-if="educationFilePreview.isPdf" :src="educationFilePreview.url" class="h-[78vh] w-full rounded-lg bg-white" :title="educationFilePreview.title" />
+                    <img v-else :src="educationFilePreview.url" :alt="educationFilePreview.title" class="max-h-[78vh] max-w-full rounded-lg object-contain" />
+                </div>
+            </section>
+        </div>
     </Dialog>
 </template>

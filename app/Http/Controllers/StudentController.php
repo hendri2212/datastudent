@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\UserRole;
 use App\Http\Requests\StudentRequest;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 use App\Models\AcademicYear;
 use App\Models\BloodType;
 use App\Models\Citizenship;
@@ -125,16 +128,74 @@ class StudentController extends Controller
         $student = $this->students->create($data, $request->user()?->id);
         $this->uploadFromForm($request, $student, $data);
 
+        $user = $request->user();
+        if ($user?->isStudent() || ! $user?->can('manage-students')) {
+            return redirect()->route('home')->with('success', 'Data siswa berhasil disimpan.');
+        }
+
         return redirect()->route('students.index')->with('success', 'Data siswa lengkap berhasil disimpan.');
     }
 
     public function update(StudentRequest $request, Student $student): RedirectResponse
     {
+        $user = $request->user();
+        $isStudentRole = $user && ($user->isStudent() || $user->role === UserRole::Student || in_array($user->role->value, ['student', 'siswa'], true));
+
+        if ($student->verified_at !== null && $isStudentRole) {
+            abort(403, 'Data siswa sudah diverifikasi sehingga tidak dapat diubah oleh siswa.');
+        }
+
         $data = $request->validated();
         $this->students->update($student, $data, $request->user()?->id);
         $this->uploadFromForm($request, $student, $data);
 
+        if ($isStudentRole || ! $user?->can('manage-students')) {
+            return redirect()->route('home')->with('success', 'Data siswa berhasil diperbarui.');
+        }
+
         return redirect()->route('students.index')->with('success', 'Data siswa berhasil diperbarui.');
+    }
+
+    public function createAccount(Request $request, Student $student): RedirectResponse
+    {
+        if (empty($student->email)) {
+            return back()->withErrors(['message' => 'Siswa belum memiliki email. Harap lengkapi email siswa terlebih dahulu pada data siswa.']);
+        }
+
+        $request->validate([
+            'password' => ['nullable', 'string', 'min:6'],
+        ]);
+
+        $password = $request->input('password') ?: ($student->nisn ?: 'siswa123');
+
+        $user = User::where('email', $student->email)->first();
+
+        if ($user) {
+            $user->update([
+                'name' => $student->full_name,
+                'role' => UserRole::Student,
+                'password' => Hash::make($password),
+                'email_verified_at' => $user->email_verified_at ?? now(),
+            ]);
+        } else {
+            $user = User::create([
+                'name' => $student->full_name,
+                'email' => $student->email,
+                'password' => Hash::make($password),
+                'role' => UserRole::Student,
+                'email_verified_at' => now(),
+            ]);
+        }
+
+        // Hubungkan siswa ini ke akun user
+        $student->update(['user_id' => $user->id]);
+
+        // Hubungkan semua record data siswa lain dengan email yang sama ke akun ini
+        Student::where('email', $student->email)
+            ->whereNull('user_id')
+            ->update(['user_id' => $user->id]);
+
+        return back()->with('success', "Akun siswa berhasil dibuat/diperbarui! Email: {$user->email} | Password: {$password}");
     }
 
     public function destroy(Student $student): RedirectResponse
@@ -153,21 +214,30 @@ class StudentController extends Controller
 
     public function forceDelete(int $id): RedirectResponse
     {
-        $student = Student::onlyTrashed()->with(['documents' => fn ($query) => $query->withTrashed()])->findOrFail($id);
+        $student = Student::onlyTrashed()->with([
+            'documents' => fn ($query) => $query->withTrashed(),
+            'achievements' => fn ($query) => $query->withTrashed(),
+        ])->findOrFail($id);
 
-        foreach ($student->documents as $document) {
-            if ($document->file_path) {
-                Storage::disk($document->disk ?: 'private')->delete($document->file_path);
-            }
-        }
+        $student->deleteAssociatedFiles();
 
         $student->forceDelete();
 
-        return back()->with('success', 'Data siswa berhasil dihapus permanen.');
+        return back()->with('success', 'Data siswa dan seluruh berkas terkait berhasil dihapus permanen.');
     }
 
-    public function photo(Student $student): \Symfony\Component\HttpFoundation\Response
+    public function photo(Request $request, Student $student): \Symfony\Component\HttpFoundation\Response
     {
+        $user = $request->user();
+        $isStudentOwner = $user
+            && ($student->user_id === $user->id
+                || (filled($user->email) && filled($student->email)
+                    && strcasecmp((string) $user->email, (string) $student->email) === 0));
+
+        if (! $user || (! $user->can('manage-students') && ! $isStudentOwner)) {
+            abort(403, 'Anda tidak memiliki akses ke foto siswa ini.');
+        }
+
         if (! $student->photo) {
             return response()->json(['message' => 'Siswa tidak memiliki foto'], 404);
         }
@@ -208,6 +278,7 @@ class StudentController extends Controller
     private function studentRelations(): array
     {
         return [
+            'user:id,name,email,role',
             'citizenship:id,name',
             'gender:id,code,name',
             'religion:id,name',
@@ -351,7 +422,7 @@ class StudentController extends Controller
             $student,
             (int) $data['document_type_id'],
             $file,
-            $data['new_document_name'] ?? null,
+            $data['new_document_notes'] ?? null,
             $request->user()?->id,
         );
     }

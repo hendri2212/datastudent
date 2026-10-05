@@ -9,6 +9,7 @@ use App\Models\StudentEducationHistory;
 use App\Models\StudentSocial;
 use App\Models\StudentViolation;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -118,6 +119,7 @@ class StudentService
         $kept = [];
         foreach ($data['education_histories'] ?? [] as $item) {
             $id = $item['id'] ?? null;
+            $certificate = $item['certificate'] ?? null;
 
             if (! empty($id)) {
                 /** @var StudentEducationHistory|null $record */
@@ -130,11 +132,19 @@ class StudentService
             }
 
             if ($record instanceof StudentEducationHistory) {
-                $record->fill(Arr::except($item, ['id']));
+                $record->fill(Arr::except($item, ['id', 'certificate']));
                 if ($record->trashed()) {
                     $record->restore();
                 }
                 $record->save();
+
+                if ($certificate instanceof \Illuminate\Http\UploadedFile && $certificate->isValid()) {
+                    if ($record->certificate && Storage::disk('local')->exists($record->certificate)) {
+                        Storage::disk('local')->delete($record->certificate);
+                    }
+                    $record->update(['certificate' => $certificate->store("education_certificates/{$student->id}", 'local')]);
+                }
+
                 $kept[] = $record->id;
             }
         }
