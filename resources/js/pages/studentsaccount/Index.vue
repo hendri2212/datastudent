@@ -425,7 +425,7 @@ const handleBulkCreateAccounts = () => {
                     <Input v-model="defaultPassword" type="text" class="font-mono text-xs" />
                 </div>
                 <p class="text-[11px] text-neutral-500">
-                    Sistem akan mengutamakan email siswa yang terdaftar. Jika kosong, email akan otomatis dibuat dengan format <code>[nisn]@siswa.belajar.id</code>.
+                    Sistem akan mengutamakan email siswa yang terdaftar. Jika kosong, email akan otomatis dibuat dengan format <code>[nisn]@erapor.id</code>.
                 </p>
             </div>
 

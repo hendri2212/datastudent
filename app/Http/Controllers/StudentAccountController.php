@@ -54,10 +54,7 @@ class StudentAccountController extends Controller
             return redirect()->back()->with('error', 'Siswa ini sudah memiliki akun login.');
         }
 
-        $email = !empty(trim($student->email))
-            ? trim($student->email)
-            : ($request->input('email') 
-                ?: ($student->nisn ?: $student->nis ?: $student->id) . '@siswa.belajar.id');
+        $email = $this->resolveStudentEmail($student, $request->input('email'));
 
         $password = $request->input('password', '12345678');
 
@@ -95,23 +92,24 @@ class StudentAccountController extends Controller
         }
 
         $createdCount = 0;
+        // Every account in this bulk operation gets the same initial password,
+        // so compute its bcrypt hash once instead of hashing once per student.
+        $hashedPassword = Hash::make($password);
 
-        DB::transaction(function () use ($studentsWithoutAccount, $password, &$createdCount) {
+        DB::transaction(function () use ($studentsWithoutAccount, $hashedPassword, &$createdCount) {
             foreach ($studentsWithoutAccount as $student) {
-                // PERBAIKAN LOGIKA EMAIL: Utamakan email asli siswa
-                $email = !empty(trim($student->email))
-                    ? trim($student->email)
-                    : ($student->nisn ?: $student->nis ?: $student->id) . '@siswa.belajar.id';
+                $email = $this->resolveStudentEmail($student);
 
-                // Jika email siswa sudah terpakai di akun user lain, tambahkan fallback unik
+                // Keep generated emails tied to the student's NISN when a collision occurs.
                 if (User::where('email', $email)->exists()) {
-                    $email = "siswa_{$student->id}_" . time() . "@siswa.belajar.id";
+                    [$local, $domain] = explode('@', $email, 2);
+                    $email = "{$local}+{$student->id}@{$domain}";
                 }
 
                 $user = User::create([
                     'name'     => $student->full_name,
                     'email'    => $email,
-                    'password' => Hash::make($password),
+                    'password' => $hashedPassword,
                     'role'     => 'student',
                 ]);
 
@@ -125,5 +123,23 @@ class StudentAccountController extends Controller
         });
 
         return redirect()->back()->with('success', "Berhasil membuat {$createdCount} akun siswa.");
+    }
+
+    /**
+     * Use an existing valid email when present; imported placeholders such as "-"
+     * mean no email, so generate the login email from the student's NISN.
+     */
+    private function resolveStudentEmail(Student $student, ?string $requestedEmail = null): string
+    {
+        $email = trim((string) ($requestedEmail ?: $student->email));
+
+        if ($email !== '' && !in_array(mb_strtolower($email), ['-', '—', 'n/a', 'null'], true)
+            && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $email;
+        }
+
+        $identifier = trim((string) ($student->nisn ?: $student->nis ?: $student->id));
+
+        return $identifier . '@erapor.id';
     }
 }
