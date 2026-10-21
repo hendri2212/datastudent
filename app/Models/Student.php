@@ -178,6 +178,12 @@ class Student extends Model
         return $this->hasMany(StudentEnrollment::class);
     }
 
+    /** @return HasMany<StudentLog, $this> */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(StudentLog::class);
+    }
+
     /** @return HasOne<StudentEnrollment, $this> */
     public function currentEnrollment(): HasOne
     {

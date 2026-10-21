@@ -19,13 +19,21 @@ class ClassroomController extends Controller
     {
         $search = $request->input('search');
         $tab = $request->input('tab', 'active');
+        $today = now()->toDateString();
         $academicYearId = $request->integer('academic_year_id')
+            ?: AcademicYear::query()
+                ->whereDate('start_date', '<=', $today)
+                ->whereDate('end_date', '>=', $today)
+                ->value('id')
             ?: AcademicYear::where('is_active', true)->value('id');
 
-        $enrollmentForYear = fn ($query) => $query->when(
-            $academicYearId,
-            fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId),
-        );
+        $enrollmentForYear = fn ($query) => $query
+            ->whereNull('ended_at')
+            ->whereHas('student')
+            ->when(
+                $academicYearId,
+                fn ($enrollments) => $enrollments->where('academic_year_id', $academicYearId),
+            );
 
         $query = Classroom::query()
             ->with('major:id,name,code')

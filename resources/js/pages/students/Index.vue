@@ -135,9 +135,100 @@ const isDeleteModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
 
 const selectedStudent = ref<Student | null>(null);
+const selectedStudentIds = ref<number[]>([]);
 const isSubmitting = ref(false);
+const bulkAction = ref<'activate' | 'delete' | 'force-delete' | 'verify' | 'unverify' | null>(null);
 const isLoadingStudentDetail = ref(false);
 const copiedKey = ref<string | null>(null);
+const allVisibleSelected = computed(() => studentList.value.length > 0 && studentList.value.every((student) => selectedStudentIds.value.includes(student.id)));
+
+watch(
+    () => studentList.value.map((student) => student.id).join(','),
+    () => { selectedStudentIds.value = []; },
+);
+
+const toggleStudentSelection = (studentId: number, event: Event) => {
+    const checked = (event.target as HTMLInputElement).checked;
+    selectedStudentIds.value = checked
+        ? [...new Set([...selectedStudentIds.value, studentId])]
+        : selectedStudentIds.value.filter((id) => id !== studentId);
+};
+
+const togglePageSelection = (event: Event) => {
+    const checked = (event.target as HTMLInputElement).checked;
+    const visibleIds = studentList.value.map((student) => student.id);
+    selectedStudentIds.value = checked
+        ? [...new Set([...selectedStudentIds.value, ...visibleIds])]
+        : selectedStudentIds.value.filter((id) => !visibleIds.includes(id));
+};
+
+const handleBulkActivate = () => {
+    if (!selectedStudentIds.value.length) return;
+    bulkAction.value = 'activate';
+    router.post('/students/bulk/activate', { student_ids: selectedStudentIds.value }, {
+        preserveScroll: true,
+        onSuccess: () => { selectedStudentIds.value = []; },
+        onFinish: () => { bulkAction.value = null; },
+    });
+};
+
+const handleBulkVerification = (action: 'verify' | 'unverify') => {
+    const verb = action === 'verify' ? 'verifikasi' : 'batalkan verifikasi';
+    const hasSelection = selectedStudentIds.value.length > 0;
+    const targetDescription = hasSelection
+        ? `${selectedStudentIds.value.length} siswa yang dipilih`
+        : 'semua siswa pada hasil filter saat ini';
+    if (!confirm(`${verb} ${targetDescription}?`)) return;
+
+    bulkAction.value = action;
+    router.post('/students/bulk/verify', {
+        ...(hasSelection ? { student_ids: selectedStudentIds.value } : {
+            filters: {
+                search: searchQuery.value,
+                classroom_id: selectedClassroom.value,
+                major_id: selectedMajor.value,
+                academic_year_id: selectedAcademicYear.value,
+                citizenship_id: selectedCitizenship.value,
+                gender_id: selectedGender.value,
+                religion_id: selectedReligion.value,
+                student_status_id: selectedStudentStatus.value,
+                blood_type_id: selectedBloodType.value,
+                tab: activeTab.value,
+            },
+        }),
+        action,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { selectedStudentIds.value = []; },
+        onFinish: () => { bulkAction.value = null; },
+    });
+};
+
+const handleBulkDelete = () => {
+    if (!selectedStudentIds.value.length) return;
+    const count = selectedStudentIds.value.length;
+    if (!confirm(`Pindahkan ${count} siswa yang dipilih ke tempat sampah?`)) return;
+
+    bulkAction.value = 'delete';
+    router.post('/students/bulk/delete', { student_ids: selectedStudentIds.value }, {
+        preserveScroll: true,
+        onSuccess: () => { selectedStudentIds.value = []; },
+        onFinish: () => { bulkAction.value = null; },
+    });
+};
+
+const handleBulkForceDelete = () => {
+    if (!selectedStudentIds.value.length) return;
+    const count = selectedStudentIds.value.length;
+    if (!confirm(`Hapus permanen ${count} siswa yang dipilih beserta berkasnya? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+    bulkAction.value = 'force-delete';
+    router.post('/students/bulk/force-delete', { student_ids: selectedStudentIds.value }, {
+        preserveScroll: true,
+        onSuccess: () => { selectedStudentIds.value = []; },
+        onFinish: () => { bulkAction.value = null; },
+    });
+};
 
 // Menghitung Jumlah Filter Aktif
 const activeFilterCount = computed(() => {
@@ -789,7 +880,39 @@ const shareDocument = async (doc: StudentDocument) => {
                 </button>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex flex-wrap items-center gap-3">
+                <div
+                    v-if="activeTab === 'active' && (permissions.manageStudents || permissions.verifyStudents) && (selectedStudentIds.length || permissions.verifyStudents)"
+                    class="flex flex-wrap items-center gap-2.5 rounded-xl border border-neutral-200 bg-neutral-50/80 p-2 dark:border-neutral-700 dark:bg-neutral-900/40"
+                >
+                    <span class="px-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{{ selectedStudentIds.length ? `${selectedStudentIds.length} siswa dipilih` : 'Semua hasil filter' }}</span>
+                    <Button v-if="permissions.manageStudents" variant="outline" size="sm" :disabled="bulkAction !== null" @click="handleBulkActivate" class="h-9 border-emerald-300 bg-white px-3 text-xs text-emerald-700 hover:bg-emerald-50 dark:bg-neutral-950">
+                        <Loader2 v-if="bulkAction === 'activate'" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <Check v-else class="mr-2 h-3.5 w-3.5" /> Aktifkan massal
+                    </Button>
+                    <Button v-if="permissions.manageStudents" variant="destructive" size="sm" :disabled="bulkAction !== null" @click="handleBulkDelete" class="h-9 px-3 text-xs">
+                        <Loader2 v-if="bulkAction === 'delete'" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <Trash2 v-else class="mr-2 h-3.5 w-3.5" /> Hapus massal
+                    </Button>
+                    <Button v-if="permissions.verifyStudents" variant="outline" size="sm" :disabled="bulkAction !== null" @click="handleBulkVerification('verify')" class="h-9 border-blue-300 bg-white px-3 text-xs text-blue-700 hover:bg-blue-50 dark:bg-neutral-950">
+                        <Loader2 v-if="bulkAction === 'verify'" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <FileCheck v-else class="mr-2 h-3.5 w-3.5" /> Verifikasi massal
+                    </Button>
+                    <Button v-if="permissions.verifyStudents" variant="outline" size="sm" :disabled="bulkAction !== null" @click="handleBulkVerification('unverify')" class="h-9 border-amber-300 bg-white px-3 text-xs text-amber-700 hover:bg-amber-50 dark:bg-neutral-950">
+                        <Loader2 v-if="bulkAction === 'unverify'" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <Unlock v-else class="mr-2 h-3.5 w-3.5" /> Batalkan verifikasi
+                    </Button>
+                </div>
+                <div
+                    v-if="activeTab === 'trashed' && permissions.forceDelete && selectedStudentIds.length"
+                    class="flex flex-wrap items-center gap-2.5 rounded-xl border border-red-200 bg-red-50/70 p-2 dark:border-red-900 dark:bg-red-950/20"
+                >
+                    <span class="px-1.5 text-xs font-semibold text-neutral-600 dark:text-neutral-300">{{ selectedStudentIds.length }} siswa dipilih</span>
+                    <Button variant="destructive" size="sm" :disabled="bulkAction !== null" @click="handleBulkForceDelete" class="h-9 px-3 text-xs">
+                        <Loader2 v-if="bulkAction === 'force-delete'" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <Trash2 v-else class="mr-2 h-3.5 w-3.5" /> Hapus permanen massal
+                    </Button>
+                </div>
                 <div class="relative w-full md:w-72">
                     <Search
                         class="absolute top-2.5 left-3 h-4 w-4 text-neutral-400"
@@ -835,6 +958,9 @@ const shareDocument = async (doc: StudentDocument) => {
                         class="border-b border-neutral-200 bg-neutral-50 font-semibold text-neutral-600 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400"
                     >
                         <tr>
+                            <th class="w-10 p-3 pl-4">
+                                <input type="checkbox" aria-label="Pilih semua siswa di halaman ini" :checked="allVisibleSelected" @change="togglePageSelection" class="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500" />
+                            </th>
                             <th
                                 class="p-3 pl-4 text-xs tracking-wide uppercase"
                             >
@@ -861,7 +987,7 @@ const shareDocument = async (doc: StudentDocument) => {
                     >
                         <tr v-if="studentList.length === 0">
                             <td
-                                colspan="5"
+                                colspan="6"
                                 class="p-12 text-center text-sm text-neutral-500"
                             >
                                 <div
@@ -885,6 +1011,9 @@ const shareDocument = async (doc: StudentDocument) => {
                             :key="student.id"
                             class="transition-colors hover:bg-blue-50/40 dark:hover:bg-neutral-800/40"
                         >
+                            <td class="p-3 pl-4">
+                                <input type="checkbox" :aria-label="`Pilih ${student.full_name}`" :checked="selectedStudentIds.includes(student.id)" @change="toggleStudentSelection(student.id, $event)" class="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500" />
+                            </td>
                             <td class="p-3 pl-4">
                                 <div class="flex items-center gap-3">
                                     <div

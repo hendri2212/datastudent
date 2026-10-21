@@ -34,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -200,14 +201,102 @@ class StudentController extends Controller
 
     public function destroy(Student $student): RedirectResponse
     {
-        $student->delete();
+        DB::transaction(function () use ($student): void {
+            $this->recordStudentActivity(request(), $student, 'deleted', 'Data siswa dihapus');
+            $student->delete();
+        });
 
         return back()->with('success', 'Data siswa berhasil dipindahkan ke sampah.');
     }
 
+    public function bulkActivate(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'student_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'student_ids.*' => ['required', 'integer', 'distinct', 'exists:students,id'],
+        ]);
+        $activeStatusId = StudentStatus::query()->where('name', 'Aktif')->value('id');
+        abort_if($activeStatusId === null, 422, 'Status Aktif belum tersedia.');
+
+        $students = Student::query()->whereKey($validated['student_ids'])->with('currentEnrollment')->get();
+        $updatedCount = 0;
+
+        DB::transaction(function () use ($students, $activeStatusId, $request, &$updatedCount): void {
+            foreach ($students as $student) {
+                $enrollment = $student->currentEnrollment;
+                if (! $enrollment || (int) $enrollment->student_status_id === (int) $activeStatusId) {
+                    continue;
+                }
+
+                $enrollment->update(['student_status_id' => $activeStatusId]);
+                $this->recordStudentActivity($request, $student, 'updated', 'Status siswa diaktifkan');
+                $updatedCount++;
+            }
+        });
+
+        return back()->with('success', $updatedCount > 0
+            ? "Status Aktif diterapkan ke {$updatedCount} siswa."
+            : 'Siswa yang dipilih sudah berstatus Aktif atau belum memiliki kelas aktif.');
+    }
+
+    public function bulkDelete(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'student_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'student_ids.*' => ['required', 'integer', 'distinct', 'exists:students,id'],
+        ]);
+        $students = Student::query()->whereKey($validated['student_ids'])->get();
+
+        DB::transaction(function () use ($students, $request): void {
+            foreach ($students as $student) {
+                $this->recordStudentActivity($request, $student, 'deleted', 'Data siswa dihapus');
+                $student->delete();
+            }
+        });
+
+        return back()->with('success', count($students).' siswa dipindahkan ke tempat sampah.');
+    }
+
+    public function bulkForceDelete(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'student_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'student_ids.*' => ['required', 'integer', 'distinct', 'exists:students,id'],
+        ]);
+        $students = Student::onlyTrashed()->whereKey($validated['student_ids'])->with([
+            'documents' => fn ($query) => $query->withTrashed(),
+            'achievements' => fn ($query) => $query->withTrashed(),
+        ])->get();
+
+        DB::transaction(function () use ($students): void {
+            foreach ($students as $student) {
+                $student->deleteAssociatedFiles();
+                $student->forceDelete();
+            }
+        });
+
+        return back()->with('success', count($students).' siswa dan berkas terkait dihapus permanen.');
+    }
+
+    private function recordStudentActivity(Request $request, Student $student, string $action, string $title): void
+    {
+        $student->logs()->create([
+            'user_id' => $request->user()?->id,
+            'action' => $action,
+            'title' => $title,
+            'description' => $student->full_name,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+    }
+
     public function restore(int $id): RedirectResponse
     {
-        Student::onlyTrashed()->findOrFail($id)->restore();
+        $student = Student::onlyTrashed()->findOrFail($id);
+        DB::transaction(function () use ($student): void {
+            $student->restore();
+            $this->recordStudentActivity(request(), $student, 'restored', 'Data siswa dipulihkan');
+        });
 
         return back()->with('success', 'Data siswa berhasil dipulihkan.');
     }

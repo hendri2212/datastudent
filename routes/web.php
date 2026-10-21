@@ -23,6 +23,7 @@ use App\Http\Controllers\StudentStatusController;
 use App\Http\Controllers\StudentVerificationController;
 use App\Http\Controllers\StudentAccountController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Middleware\RedirectStudentsFromAdminPages;
 use Illuminate\Support\Facades\Route;
 
@@ -43,7 +44,7 @@ Route::middleware(['auth'])->group(function () {
 // 2. ROUTE APLIKASI UTAMA (MEMBUTUHKAN AUTHENTICATION)
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    Route::inertia('dashboard', 'Dashboard')->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard');
+    Route::get('dashboard', DashboardController::class)->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard');
 
     // ==========================================
     // ROUTE SISWA (AKSES UMUM UNTUK USER TERAUTENTIKASI)
@@ -58,6 +59,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Route list (index) dan hapus (destroy) khusus Admin
         Route::get('/students', [StudentController::class, 'index'])->name('students.index');
+        Route::post('/students/bulk/activate', [StudentController::class, 'bulkActivate'])->name('students.bulk-activate');
+        Route::post('/students/bulk/delete', [StudentController::class, 'bulkDelete'])->name('students.bulk-delete');
+        Route::post('/students/bulk/verify', [StudentVerificationController::class, 'bulk'])->middleware('can:verify-students')->name('students.bulk-verify');
+        Route::post('/students/bulk/force-delete', [StudentController::class, 'bulkForceDelete'])->middleware('can:force-delete')->name('students.bulk-force-delete');
         Route::delete('/students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
         Route::get('/students/{student}/detail', [StudentController::class, 'detail'])->name('students.detail');
         

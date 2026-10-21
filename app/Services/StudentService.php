@@ -23,6 +23,7 @@ class StudentService
             $student = Student::create($this->studentAttributes($data));
             $this->syncEnrollment($student, $data);
             $this->syncRelations($student, $data, $actorId, true);
+            $this->recordActivity($student, $actorId, 'created', 'Data siswa ditambahkan');
 
             return $student;
         });
@@ -36,9 +37,24 @@ class StudentService
             $student->update($this->studentAttributes($data));
             $this->syncEnrollment($student, $data);
             $this->syncRelations($student, $data, $actorId, false);
+            $this->recordActivity($student, $actorId, 'updated', 'Data siswa diperbarui');
 
             return $student;
         });
+    }
+
+    private function recordActivity(Student $student, ?int $actorId, string $action, string $title): void
+    {
+        $request = request();
+
+        $student->logs()->create([
+            'user_id' => $actorId,
+            'action' => $action,
+            'title' => $title,
+            'description' => $student->full_name,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
     }
 
     /**
