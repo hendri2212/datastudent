@@ -51,8 +51,10 @@ const chartBackground = computed(() => {
         const start = cursor;
         cursor += genderTotal.value ? (item.total / genderTotal.value) * 100 : 0;
         const color = activeGender.value && activeGender.value !== item.name ? '#cbd5e1' : colors[index % colors.length];
+
         return `${color} ${start}% ${cursor}%`;
     });
+
     return segments.length ? `conic-gradient(${segments.join(', ')})` : '#e2e8f0';
 });
 const maxClassCount = computed(() => Math.max(1, ...props.classrooms.map((item) => item.total)));

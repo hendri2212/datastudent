@@ -75,12 +75,12 @@ class DashboardController extends Controller
             ->get()
             ->map(fn (StudentLog $log) => [
                 'id' => $log->id,
-                'name' => $log->student?->full_name ?? $log->description ?? 'Siswa',
+                'name' => $log->student->full_name ?? $log->description ?? 'Siswa',
                 'action' => $log->title,
                 'date' => $log->created_at?->toIso8601String(),
                 'type' => $log->action,
-                'actorName' => $log->user?->name ?? 'Sistem',
-                'actorRole' => $log->user?->role?->value ?? 'system',
+                'actorName' => $log->user->name ?? 'Sistem',
+                'actorRole' => $log->user->role->value ?? 'system',
             ]);
 
         $genderCounts = (clone $students)
@@ -89,7 +89,7 @@ class DashboardController extends Controller
             ->groupBy('genders.name')
             ->orderBy('genders.name')
             ->get()
-            ->map(fn ($row) => ['name' => $row->name, 'total' => (int) $row->total]);
+            ->map(fn (Student $row) => ['name' => (string) $row->getAttribute('name'), 'total' => (int) $row->getAttribute('total')]);
 
         $religionTotals = (clone $students)
             ->join('religions', 'students.religion_id', '=', 'religions.id')
@@ -118,6 +118,7 @@ class DashboardController extends Controller
             ->get(['id', 'name', 'code'])
             ->map(fn ($major) => ['id' => $major->id, 'name' => $major->name, 'code' => $major->code, 'total' => (int) ($majorTotals[$major->id] ?? 0)]);
 
+        /** @var \Illuminate\Support\Collection<int, object{classroom_id:int, major_id:int, gender:string, religion:string, total:int}> $details */
         $details = DB::table('student_enrollments')
             ->join('students', 'student_enrollments.student_id', '=', 'students.id')
             ->join('classrooms', 'student_enrollments.classroom_id', '=', 'classrooms.id')
@@ -134,24 +135,47 @@ class DashboardController extends Controller
 
         $demographicsByClass = [];
         $demographicsByMajor = [];
-        $addDemographics = function (array &$collection, int $key, object $row): void {
+        $addDemographics = function (array &$collection, int $key, string $gender, string $religion, int $total): void {
             $collection[$key] ??= ['genders' => [], 'religions' => []];
-            $collection[$key]['genders'][$row->gender] = ($collection[$key]['genders'][$row->gender] ?? 0) + (int) $row->total;
-            $collection[$key]['religions'][$row->religion] = ($collection[$key]['religions'][$row->religion] ?? 0) + (int) $row->total;
+            $collection[$key]['genders'][$gender] = ($collection[$key]['genders'][$gender] ?? 0) + $total;
+            $collection[$key]['religions'][$religion] = ($collection[$key]['religions'][$religion] ?? 0) + $total;
         };
         foreach ($details as $row) {
-            $addDemographics($demographicsByClass, (int) $row->classroom_id, $row);
-            $addDemographics($demographicsByMajor, (int) $row->major_id, $row);
+            $gender = (string) data_get($row, 'gender');
+            $religion = (string) data_get($row, 'religion');
+            $total = (int) data_get($row, 'total');
+            $addDemographics($demographicsByClass, (int) data_get($row, 'classroom_id'), $gender, $religion, $total);
+            $addDemographics($demographicsByMajor, (int) data_get($row, 'major_id'), $gender, $religion, $total);
         }
 
+        $formatDemographicValues = static function (array $counts): array {
+            $formatted = [];
+            foreach ($counts as $name => $total) {
+                $formatted[] = ['name' => (string) $name, 'total' => (int) $total];
+            }
+
+            return $formatted;
+        };
         $formatDemographics = fn (array $data) => [
-            'genders' => collect($data['genders'] ?? [])->map(fn ($total, $name) => ['name' => $name, 'total' => $total])->values(),
-            'religions' => collect($data['religions'] ?? [])->map(fn ($total, $name) => ['name' => $name, 'total' => $total])->values(),
+            'genders' => $formatDemographicValues($data['genders'] ?? []),
+            'religions' => $formatDemographicValues($data['religions'] ?? []),
         ];
         $majorCounts = $majorCounts->map(function ($major) use ($demographicsByMajor, $formatDemographics) {
             $major['demographics'] = $formatDemographics($demographicsByMajor[$major['id']] ?? []);
             return $major;
         });
+
+        $maleTotal = 0;
+        $femaleTotal = 0;
+        foreach ($genderCounts as $gender) {
+            $normalizedName = mb_strtolower($gender['name']);
+            if (in_array($normalizedName, ['laki-laki', 'laki laki', 'pria', 'male'], true)) {
+                $maleTotal = $gender['total'];
+            }
+            if (in_array($normalizedName, ['perempuan', 'wanita', 'female'], true)) {
+                $femaleTotal = $gender['total'];
+            }
+        }
 
         $classrooms = Classroom::query()
             ->where('status', 'Aktif')
@@ -159,7 +183,7 @@ class DashboardController extends Controller
                 ->whereHas('student')
                 ->whereRaw('student_enrollments.id = (select max(current_enrollment.id) from student_enrollments as current_enrollment where current_enrollment.student_id = student_enrollments.student_id and current_enrollment.ended_at is null)')])
             ->with('major:id,name')
-            ->orderByRaw("FIELD(level, 'X', 'XI', 'XII')")
+            ->orderByRaw("CASE level WHEN 'X' THEN 1 WHEN 'XI' THEN 2 WHEN 'XII' THEN 3 ELSE 4 END")
             ->orderBy('rombel')
             ->get(['id', 'name', 'level', 'rombel', 'major_id'])
             ->map(fn ($classroom) => [
@@ -174,8 +198,8 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'summary' => [
                 'total' => $totalStudents,
-                'male' => (int) $genderCounts->first(fn ($gender) => in_array(mb_strtolower($gender['name']), ['laki-laki', 'laki laki', 'pria', 'male']))['total'] ?? 0,
-                'female' => (int) $genderCounts->first(fn ($gender) => in_array(mb_strtolower($gender['name']), ['perempuan', 'wanita', 'female']))['total'] ?? 0,
+                'male' => $maleTotal,
+                'female' => $femaleTotal,
                 'classes' => $classrooms->count(),
                 'verified' => (clone $students)->whereNotNull('verified_at')->count(),
                 'pending' => (clone $students)->whereNull('verified_at')->count(),

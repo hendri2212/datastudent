@@ -144,7 +144,9 @@ const allVisibleSelected = computed(() => studentList.value.length > 0 && studen
 
 watch(
     () => studentList.value.map((student) => student.id).join(','),
-    () => { selectedStudentIds.value = []; },
+    () => {
+            selectedStudentIds.value = [];
+},
 );
 
 const toggleStudentSelection = (studentId: number, event: Event) => {
@@ -163,12 +165,19 @@ const togglePageSelection = (event: Event) => {
 };
 
 const handleBulkActivate = () => {
-    if (!selectedStudentIds.value.length) return;
+    if (!selectedStudentIds.value.length) {
+return;
+}
+
     bulkAction.value = 'activate';
     router.post('/students/bulk/activate', { student_ids: selectedStudentIds.value }, {
         preserveScroll: true,
-        onSuccess: () => { selectedStudentIds.value = []; },
-        onFinish: () => { bulkAction.value = null; },
+        onSuccess: () => {
+            selectedStudentIds.value = [];
+},
+        onFinish: () => {
+            bulkAction.value = null;
+},
     });
 };
 
@@ -178,7 +187,10 @@ const handleBulkVerification = (action: 'verify' | 'unverify') => {
     const targetDescription = hasSelection
         ? `${selectedStudentIds.value.length} siswa yang dipilih`
         : 'semua siswa pada hasil filter saat ini';
-    if (!confirm(`${verb} ${targetDescription}?`)) return;
+
+    if (!confirm(`${verb} ${targetDescription}?`)) {
+return;
+}
 
     bulkAction.value = action;
     router.post('/students/bulk/verify', {
@@ -199,34 +211,58 @@ const handleBulkVerification = (action: 'verify' | 'unverify') => {
         action,
     }, {
         preserveScroll: true,
-        onSuccess: () => { selectedStudentIds.value = []; },
-        onFinish: () => { bulkAction.value = null; },
+        onSuccess: () => {
+            selectedStudentIds.value = [];
+},
+        onFinish: () => {
+            bulkAction.value = null;
+},
     });
 };
 
 const handleBulkDelete = () => {
-    if (!selectedStudentIds.value.length) return;
+    if (!selectedStudentIds.value.length) {
+return;
+}
+
     const count = selectedStudentIds.value.length;
-    if (!confirm(`Pindahkan ${count} siswa yang dipilih ke tempat sampah?`)) return;
+
+    if (!confirm(`Pindahkan ${count} siswa yang dipilih ke tempat sampah?`)) {
+return;
+}
 
     bulkAction.value = 'delete';
     router.post('/students/bulk/delete', { student_ids: selectedStudentIds.value }, {
         preserveScroll: true,
-        onSuccess: () => { selectedStudentIds.value = []; },
-        onFinish: () => { bulkAction.value = null; },
+        onSuccess: () => {
+            selectedStudentIds.value = [];
+},
+        onFinish: () => {
+            bulkAction.value = null;
+},
     });
 };
 
 const handleBulkForceDelete = () => {
-    if (!selectedStudentIds.value.length) return;
+    if (!selectedStudentIds.value.length) {
+return;
+}
+
     const count = selectedStudentIds.value.length;
-    if (!confirm(`Hapus permanen ${count} siswa yang dipilih beserta berkasnya? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+    if (!confirm(`Hapus permanen ${count} siswa yang dipilih beserta berkasnya? Tindakan ini tidak dapat dibatalkan.`)) {
+return;
+}
 
     bulkAction.value = 'force-delete';
     router.post('/students/bulk/force-delete', { student_ids: selectedStudentIds.value }, {
         preserveScroll: true,
-        onSuccess: () => { selectedStudentIds.value = []; },
-        onFinish: () => { bulkAction.value = null; },
+        onSuccess: () => {
+            selectedStudentIds.value = [];
+},
+        onFinish: () => {
+            bulkAction.value = null;
+},
     });
 };
 

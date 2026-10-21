@@ -28,7 +28,7 @@ class StudentVerificationController extends Controller
             'filters.tab' => ['nullable', 'in:active,trashed'],
         ]);
         $actor = $request->user();
-        abort_unless($actor, 401);
+        abort_unless($actor !== null, 401);
 
         $query = Student::query();
         if (! empty($validated['student_ids'])) {
@@ -96,7 +96,7 @@ class StudentVerificationController extends Controller
     public function verify(Request $request, Student $student): RedirectResponse
     {
         $actor = $request->user();
-        abort_unless($actor, 401);
+        abort_unless($actor !== null, 401);
 
         if ($student->verified_at !== null) {
             return redirect()->back()->withErrors([
@@ -125,7 +125,7 @@ class StudentVerificationController extends Controller
     public function unverify(Request $request, Student $student): RedirectResponse
     {
         $actor = $request->user();
-        abort_unless($actor, 401);
+        abort_unless($actor !== null, 401);
 
         if ($student->verified_at !== null) {
             DB::transaction(function () use ($request, $student, $actor): void {
