@@ -34,27 +34,189 @@ class StudentService
     {
         return DB::transaction(function () use ($student, $data, $actorId) {
             $this->validateAcademicHierarchy($data);
+            $before = $this->studentChangeSnapshot($student);
             $student->update($this->studentAttributes($data));
             $this->syncEnrollment($student, $data);
             $this->syncRelations($student, $data, $actorId, false);
-            $this->recordActivity($student, $actorId, 'updated', 'Data siswa diperbarui');
+            $after = $this->studentChangeSnapshot($student->fresh());
+            $photoFile = $data['photo_file'] ?? null;
+            if ($photoFile instanceof \Illuminate\Http\UploadedFile) {
+                $after['Foto siswa'] = 'File baru: '.$photoFile->getClientOriginalName();
+            }
+            foreach ($data['achievements'] ?? [] as $index => $achievement) {
+                $certificate = $achievement['certificate'] ?? null;
+                if (! $certificate instanceof \Illuminate\Http\UploadedFile) {
+                    continue;
+                }
+
+                $achievementId = $achievement['id'] ?? null;
+                if ($achievementId === null) {
+                    $achievementId = DB::table('student_achievements')
+                        ->where('student_id', $student->id)
+                        ->where('title', $achievement['title'] ?? '')
+                        ->orderByDesc('id')
+                        ->value('id') ?? 'baru-'.($index + 1);
+                }
+                $after["Prestasi #{$achievementId} · Sertifikat"] = 'File baru: '.$certificate->getClientOriginalName();
+            }
+            $changes = $this->studentChangeDiff($before, $after);
+            $this->recordActivity($student, $actorId, 'updated', 'Data siswa diperbarui', $changes);
 
             return $student;
         });
     }
 
-    private function recordActivity(Student $student, ?int $actorId, string $action, string $title): void
+    /** @param array<string, array{old: string|null, new: string|null}> $changes */
+    private function recordActivity(Student $student, ?int $actorId, string $action, string $title, array $changes = []): void
     {
         $request = request();
+        $description = $student->full_name;
+        if ($changes !== []) {
+            $description .= "\n[student_changes]".json_encode($changes, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
 
         $student->logs()->create([
             'user_id' => $actorId,
             'action' => $action,
             'title' => $title,
-            'description' => $student->full_name,
+            'description' => $description,
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
+    }
+
+    /** @return array<string, string|null> */
+    private function studentChangeSnapshot(Student $student): array
+    {
+        $labels = [
+            'nis' => 'NIS', 'nisn' => 'NISN', 'full_name' => 'Nama lengkap', 'nickname' => 'Nama panggilan',
+            'birth_place' => 'Tempat lahir', 'birth_date' => 'Tanggal lahir', 'phone' => 'Nomor telepon',
+            'email' => 'Email', 'address' => 'Alamat', 'postal_code' => 'Kode pos', 'notes' => 'Catatan',
+            'is_locked' => 'Status akun', 'gender_id' => 'Jenis kelamin', 'religion_id' => 'Agama',
+            'citizenship_id' => 'Kewarganegaraan',
+        ];
+        $snapshot = [];
+
+        foreach ($labels as $field => $label) {
+            $value = $student->getRawOriginal($field);
+            if (in_array($field, ['gender_id', 'religion_id', 'citizenship_id'], true)) {
+                $table = match ($field) {
+                    'gender_id' => 'genders',
+                    'religion_id' => 'religions',
+                    default => 'citizenships',
+                };
+                $value = $value ? DB::table($table)->where('id', $value)->value('name') : null;
+            } elseif ($field === 'is_locked') {
+                $value = $value ? 'Dikunci' : 'Aktif';
+            }
+            $snapshot[$label] = $value === null ? null : (string) $value;
+        }
+
+        $enrollment = $student->currentEnrollment;
+        $snapshot['Jurusan'] = $enrollment?->classroom?->major?->name;
+        $snapshot['Kelas'] = $enrollment?->classroom?->name;
+        $snapshot['Tahun ajaran'] = $enrollment?->academicYear?->name;
+        $snapshot['Status siswa'] = $enrollment?->status?->name;
+        $photo = $student->getRawOriginal('photo');
+        $snapshot['Foto siswa'] = $photo ? 'File: '.basename((string) $photo) : null;
+
+        $this->appendRelatedSnapshot($snapshot, 'Data orang tua / wali', 'student_family', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Data kesehatan', 'student_healths', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Riwayat pendidikan', 'student_education_history', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Media sosial', 'student_socials', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Prestasi', 'student_achievements', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Pelanggaran', 'student_violations', $student->id);
+        $this->appendRelatedSnapshot($snapshot, 'Dokumen', 'student_documents', $student->id);
+
+        return $snapshot;
+    }
+
+    /** @param array<string, string|null> $snapshot */
+    private function appendRelatedSnapshot(array &$snapshot, string $section, string $table, int $studentId): void
+    {
+        foreach (DB::table($table)->where('student_id', $studentId)->get() as $record) {
+            $attributes = (array) $record;
+            $recordId = (string) ($attributes['id'] ?? '');
+            foreach ($attributes as $field => $rawValue) {
+                if (in_array($field, ['id', 'student_id', 'created_at', 'updated_at', 'deleted_at'], true)) {
+                    continue;
+                }
+                $value = $this->studentChangeValue($field, $rawValue);
+                if ($value !== null) {
+                    $snapshot["{$section} #{$recordId} · ".$this->studentChangeLabel($field)] = $value;
+                }
+            }
+            if (array_key_exists('deleted_at', $attributes)) {
+                $snapshot["{$section} #{$recordId} · Status data"] = $attributes['deleted_at'] === null ? 'Aktif' : 'Dihapus';
+            }
+        }
+    }
+
+    private function studentChangeValue(string $field, mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $lookup = [
+            'gender_id' => ['genders', 'name'], 'religion_id' => ['religions', 'name'],
+            'citizenship_id' => ['citizenships', 'name'], 'blood_type_id' => ['blood_types', 'name'],
+            'father_occupation_id' => ['occupations', 'name'], 'mother_occupation_id' => ['occupations', 'name'],
+            'guardian_occupation_id' => ['occupations', 'name'], 'father_income_category_id' => ['income_categories', 'name'],
+            'mother_income_category_id' => ['income_categories', 'name'], 'guardian_income_category_id' => ['income_categories', 'name'],
+            'relationship_type_id' => ['relationship_types', 'name'], 'education_level_id' => ['education_levels', 'name'],
+            'social_platform_id' => ['social_platforms', 'name'], 'document_type_id' => ['document_types', 'name'],
+        ];
+        if (isset($lookup[$field])) {
+            [$table, $column] = $lookup[$field];
+            return (string) (DB::table($table)->where('id', $value)->value($column) ?? $value);
+        }
+        if (in_array($field, ['is_locked', 'is_public', 'is_primary', 'is_graduated', 'is_verified'], true)) {
+            return (bool) $value ? 'Ya' : 'Tidak';
+        }
+        if (in_array($field, ['photo', 'certificate', 'file_path'], true)) {
+            return 'File: '.basename((string) $value);
+        }
+
+        return (string) $value;
+    }
+
+    private function studentChangeLabel(string $field): string
+    {
+        $labels = [
+            'father_name' => 'Nama ayah', 'father_occupation_id' => 'Pekerjaan ayah', 'father_income_category_id' => 'Penghasilan ayah', 'father_phone' => 'Telepon ayah',
+            'mother_name' => 'Nama ibu', 'mother_occupation_id' => 'Pekerjaan ibu', 'mother_income_category_id' => 'Penghasilan ibu', 'mother_phone' => 'Telepon ibu',
+            'guardian_name' => 'Nama wali', 'guardian_occupation_id' => 'Pekerjaan wali', 'guardian_income_category_id' => 'Penghasilan wali', 'guardian_phone' => 'Telepon wali',
+            'emergency_contact_name' => 'Nama kontak darurat', 'emergency_contact_phone' => 'Telepon kontak darurat', 'relationship_type_id' => 'Hubungan dengan siswa',
+            'height' => 'Tinggi badan', 'weight' => 'Berat badan', 'blood_type_id' => 'Golongan darah', 'allergies' => 'Alergi', 'medical_history' => 'Riwayat penyakit',
+            'disabilities' => 'Disabilitas', 'medications' => 'Obat yang dikonsumsi', 'hospital' => 'Rumah sakit', 'doctor' => 'Dokter',
+            'education_level_id' => 'Jenjang pendidikan', 'school_name' => 'Nama sekolah', 'npsn' => 'NPSN', 'entry_year' => 'Tahun masuk',
+            'graduation_year' => 'Tahun lulus', 'final_score' => 'Nilai akhir', 'is_graduated' => 'Status kelulusan',
+            'social_platform_id' => 'Platform', 'username' => 'Nama akun', 'url' => 'Tautan', 'is_public' => 'Akun publik', 'is_primary' => 'Akun utama',
+            'title' => 'Judul', 'organizer' => 'Penyelenggara', 'level' => 'Tingkat', 'category' => 'Kategori', 'rank' => 'Peringkat',
+            'achievement_date' => 'Tanggal prestasi', 'certificate' => 'Sertifikat', 'point' => 'Poin', 'violation_date' => 'Tanggal pelanggaran',
+            'description' => 'Keterangan', 'document_type_id' => 'Jenis dokumen', 'original_name' => 'Nama berkas', 'file_size' => 'Ukuran berkas',
+            'is_verified' => 'Status verifikasi', 'notes' => 'Catatan',
+        ];
+
+        return $labels[$field] ?? ucfirst(str_replace('_', ' ', $field));
+    }
+
+    /** @param array<string, string|null> $before
+     *  @param array<string, string|null> $after
+     *  @return array<string, array{old: string|null, new: string|null}>
+     */
+    private function studentChangeDiff(array $before, array $after): array
+    {
+        $changes = [];
+        foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $field) {
+            $newValue = $after[$field] ?? null;
+            $oldValue = $before[$field] ?? null;
+            if ($oldValue !== $newValue) {
+                $changes[$field] = ['old' => $oldValue, 'new' => $newValue];
+            }
+        }
+
+        return $changes;
     }
 
     /**

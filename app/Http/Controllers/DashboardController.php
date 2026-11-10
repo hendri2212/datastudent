@@ -8,12 +8,158 @@ use App\Models\Religion;
 use App\Models\Student;
 use App\Models\StudentLog;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function statisticsDetails(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'type' => ['required', 'in:birthdays,age'],
+            'age_group' => ['nullable', 'integer', 'between:0,3'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'major' => ['nullable', 'integer'],
+            'classroom' => ['nullable', 'integer'],
+        ]);
+        $today = Carbon::today();
+        $students = Student::query()
+            ->whereHas('currentEnrollment')
+            ->whereNotNull('birth_date')
+            ->whereDate('birth_date', '<=', $today->toDateString())
+            ->with(['currentEnrollment.classroom.major', 'gender', 'religion'])
+            ->get(['id', 'full_name', 'birth_date', 'gender_id', 'religion_id'])
+            ->map(function (Student $student) use ($today): array {
+                $birthDate = $student->birth_date;
+                $age = $birthDate->age;
+                $birthdayThisYear = Carbon::create($today->year, $birthDate->month, 1)
+                    ->day(min($birthDate->day, Carbon::create($today->year, $birthDate->month, 1)->daysInMonth));
+                $nextBirthday = $birthdayThisYear->lt($today) ? $birthdayThisYear->copy()->addYear() : $birthdayThisYear;
+
+                return [
+                    'id' => $student->id,
+                    'name' => $student->full_name,
+                    'age' => $age,
+                    'birthdayAge' => $age + ($nextBirthday->year > $today->year ? 1 : 0),
+                    'birthDate' => $birthDate->toDateString(),
+                    'nextBirthday' => $nextBirthday->toDateString(),
+                    'daysUntil' => (int) $today->diffInDays($nextBirthday),
+                    'classroomId' => $student->currentEnrollment->classroom->id ?? null,
+                    'majorId' => $student->currentEnrollment->classroom->major->id ?? null,
+                    'classroom' => $student->currentEnrollment->classroom->name ?? 'Belum ada kelas',
+                    'major' => $student->currentEnrollment->classroom->major->name ?? 'Belum ada jurusan',
+                    'gender' => $student->gender->name ?? 'Tidak diketahui',
+                    'religion' => $student->religion->name ?? 'Tidak diketahui',
+                ];
+            });
+
+        if ($validated['type'] === 'birthdays') {
+            $cohort = $students->filter(fn (array $student) => $student['daysUntil'] <= 30)->values();
+        } else {
+            $ageGroup = (int) ($validated['age_group'] ?? 0);
+            $cohort = $students->filter(fn (array $student) => match ($ageGroup) {
+                0 => $student['age'] <= 15,
+                1 => $student['age'] >= 16 && $student['age'] <= 17,
+                2 => $student['age'] >= 18 && $student['age'] <= 19,
+                default => $student['age'] >= 20,
+            })->values();
+        }
+
+        $majorFilters = $cohort->map(fn (array $student) => ['id' => $student['majorId'], 'name' => $student['major']])
+            ->filter(fn (array $major) => $major['id'] !== null)
+            ->unique('id')->sortBy('name')->values();
+        $classroomFilters = $cohort->map(fn (array $student) => ['id' => $student['classroomId'], 'name' => $student['classroom'], 'majorId' => $student['majorId']])
+            ->filter(fn (array $classroom) => $classroom['id'] !== null)
+            ->unique('id')->sortBy('name')->values();
+
+        $rows = $cohort->filter(function (array $student) use ($validated): bool {
+            if (isset($validated['major']) && (int) $student['majorId'] !== (int) $validated['major']) return false;
+            if (isset($validated['classroom']) && (int) $student['classroomId'] !== (int) $validated['classroom']) return false;
+            $search = trim((string) ($validated['search'] ?? ''));
+            if ($search !== '') {
+                $searchable = implode(' ', [$student['name'], $student['classroom'], $student['major'], $student['gender'], $student['religion']]);
+                if (mb_stripos($searchable, $search) === false) return false;
+            }
+
+            return true;
+        });
+
+        if ($validated['type'] === 'birthdays') {
+            $rows = $rows->sortBy(fn (array $student) => sprintf('%03d:%s', $student['daysUntil'], mb_strtolower($student['name'])))->values();
+            $summary = null;
+        } else {
+            $rows = $rows->sortBy('name')->values();
+            $summary = [];
+            foreach (['classroom' => 'kelas', 'major' => 'jurusan', 'gender' => 'kelamin', 'religion' => 'agama'] as $field => $label) {
+                $summary[$label] = $rows->countBy($field)
+                    ->map(fn (int $total, string $name) => ['name' => $name, 'total' => $total])
+                    ->sortByDesc('total')
+                    ->values();
+            }
+        }
+
+        $perPage = 20;
+        $page = (int) ($validated['page'] ?? 1);
+        $total = $rows->count();
+
+        return response()->json([
+            'data' => $rows->forPage($page, $perPage)->values(),
+            'summary' => $summary,
+            'filters' => ['majors' => $majorFilters, 'classrooms' => $classroomFilters],
+            'currentPage' => $page,
+            'lastPage' => max(1, (int) ceil($total / $perPage)),
+            'total' => $total,
+        ]);
+    }
+
+    public function activities(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'role' => ['nullable', 'in:student,admin,operator'],
+        ]);
+
+        $logs = StudentLog::query()
+            ->with([
+                'student' => fn ($query) => $query->withTrashed()->select('id', 'full_name'),
+                'user:id,name,role',
+            ])
+            ->when($validated['search'] ?? null, function ($query, string $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereIn('student_id', Student::withTrashed()->select('id')->where('full_name', 'like', "%{$search}%"))
+                        ->orWhereHas('user', fn ($user) => $user->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($validated['role'] ?? null, fn ($query, string $role) => $query->whereHas('user', fn ($user) => $user->where('role', $role)))
+            ->latest('created_at')
+            ->latest('id')
+            ->paginate(20);
+
+        return response()->json([
+            'data' => $logs->getCollection()->map(fn (StudentLog $log) => [
+                'id' => $log->id,
+                'name' => $log->student->full_name ?? $log->description ?? 'Siswa',
+                'action' => $log->title,
+                'date' => $log->created_at?->toIso8601String(),
+                'type' => $log->action,
+                'actorName' => $log->user->name ?? 'Sistem',
+                'actorRole' => $log->user->role->value ?? 'system',
+                'description' => $log->description,
+                'changes' => $log->changes,
+            ])->values(),
+            'currentPage' => $logs->currentPage(),
+            'lastPage' => $logs->lastPage(),
+            'total' => $logs->total(),
+        ]);
+    }
+
     public function __invoke(): Response
     {
         $students = Student::query()->whereHas('currentEnrollment');

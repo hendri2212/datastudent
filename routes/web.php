@@ -45,6 +45,8 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('dashboard', DashboardController::class)->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard');
+    Route::get('dashboard/activities', [DashboardController::class, 'activities'])->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard.activities');
+    Route::get('dashboard/statistics-details', [DashboardController::class, 'statisticsDetails'])->middleware(RedirectStudentsFromAdminPages::class)->name('dashboard.statistics-details');
 
     // ==========================================
     // ROUTE SISWA (AKSES UMUM UNTUK USER TERAUTENTIKASI)
