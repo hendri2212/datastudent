@@ -122,7 +122,7 @@ const prevStep = () => {
 };
 
 // Form State
-const form = useForm({
+const studentForm = useForm({
     school_id: null as number | null,
     major_id: null as number | null,
     classroom_id: null as number | null,
@@ -184,6 +184,7 @@ const form = useForm({
     new_document_file: null as File | null,
     photo_file: null as File | null,
 });
+const isFormProcessing = computed(() => studentForm.processing);
 
 // Helpers
 const parseNullableId = (val: unknown) =>
@@ -221,6 +222,9 @@ const photoPosition = ref({ x: 50, y: 50 });
 const photoZoom = ref(100);
 const photoCacheBuster = ref(Date.now());
 const isPhotoCropOpen = ref(false);
+const shouldShowPhotoCrop = computed(
+    () => isPhotoCropOpen.value && studentForm.photo_file !== null,
+);
 const filePreview = ref<{ url: string; title: string; isPdf: boolean } | null>(null);
 const cropDrag = ref<{
     startX: number;
@@ -230,9 +234,9 @@ const cropDrag = ref<{
 } | null>(null);
 
 const resetDocumentFields = () => {
-    form.new_document_file = null;
-    form.new_document_notes = '';
-    form.document_type_id = null;
+    studentForm.new_document_file = null;
+    studentForm.new_document_notes = '';
+    studentForm.document_type_id = null;
 };
 
 const clearPhotoPreviewUrl = () => {
@@ -244,7 +248,7 @@ const clearPhotoPreviewUrl = () => {
 };
 
 const resetPhotoField = () => {
-    form.photo_file = null;
+    studentForm.photo_file = null;
     clearPhotoPreviewUrl();
     photoPosition.value = { x: 50, y: 50 };
     photoZoom.value = 100;
@@ -253,7 +257,7 @@ const resetPhotoField = () => {
 };
 
 const handleDocumentFileChange = (event: Event) => {
-    form.new_document_file =
+    studentForm.new_document_file =
         (event.target as HTMLInputElement).files?.[0] ?? null;
 };
 
@@ -334,18 +338,18 @@ return null;
 };
 
 const prepareCroppedPhoto = async (): Promise<void> => {
-    if (!form.photo_file) {
+    if (!studentForm.photo_file) {
 return;
 }
 
     const cropped = await createCroppedPhotoFile(
-        form.photo_file,
+        studentForm.photo_file,
         photoPosition.value,
         photoZoom.value
     );
 
     if (cropped) {
-        form.photo_file = cropped;
+        studentForm.photo_file = cropped;
         clearPhotoPreviewUrl();
         photoPreviewUrl.value = URL.createObjectURL(cropped);
     }
@@ -353,7 +357,7 @@ return;
 
 const handlePhotoFileChange = async (event: Event) => {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-    form.photo_file = file;
+    studentForm.photo_file = file;
     photoPosition.value = { x: 50, y: 50 };
     clearPhotoPreviewUrl();
 
@@ -383,8 +387,8 @@ return;
     const dy = event.clientY - cropDrag.value.startY;
     const deltaX = (dx / rect.width) * 100;
     const deltaY = (dy / rect.height) * 100;
-    photoPosition.value.x = Math.min(100, Math.max(0, cropDrag.value.x + deltaX));
-    photoPosition.value.y = Math.min(100, Math.max(0, cropDrag.value.y + deltaY));
+    photoPosition.value.x = Math.min(100, Math.max(0, cropDrag.value.x - deltaX));
+    photoPosition.value.y = Math.min(100, Math.max(0, cropDrag.value.y - deltaY));
 };
 
 const handleCropPointerEnd = () => {
@@ -432,45 +436,45 @@ const closeFilePreview = () => {
 };
 
 const isDocumentTypeExists = computed(() => {
-    if (!form.document_type_id || !props.student?.documents) {
+    if (!studentForm.document_type_id || !props.student?.documents) {
 return false;
 }
 
     return props.student.documents.some(
         (doc) =>
             parseNullableId(doc.document_type_id) ===
-            parseNullableId(form.document_type_id)
+            parseNullableId(studentForm.document_type_id)
     );
 });
 
 const filteredMajors = computed(
     () =>
         props.majors?.filter(
-            (major) => !form.school_id || major.school_id === form.school_id
+            (major) => !studentForm.school_id || major.school_id === studentForm.school_id
         ) ?? []
 );
 const filteredClassrooms = computed(
     () =>
         props.classrooms?.filter(
             (classroom) =>
-                !form.major_id || classroom.major_id === form.major_id
+                !studentForm.major_id || classroom.major_id === studentForm.major_id
         ) ?? []
 );
 
 const handleSchoolChange = () => {
-    if (!filteredMajors.value.some((major) => major.id === form.major_id)) {
-        form.major_id = null;
-        form.classroom_id = null;
+    if (!filteredMajors.value.some((major) => major.id === studentForm.major_id)) {
+        studentForm.major_id = null;
+        studentForm.classroom_id = null;
     }
 };
 
 const handleMajorChange = () => {
     if (
         !filteredClassrooms.value.some(
-            (classroom) => classroom.id === form.classroom_id
+            (classroom) => classroom.id === studentForm.classroom_id
         )
     ) {
-        form.classroom_id = null;
+        studentForm.classroom_id = null;
     }
 };
 
@@ -482,64 +486,64 @@ watch(
 
         if (newStudent) {
             photoCacheBuster.value = Date.now();
-            form.reset();
-            form.clearErrors();
-            form.school_id = parseNullableId(newStudent.school_id);
-            form.major_id = parseNullableId(newStudent.major_id);
-            form.classroom_id = parseNullableId(newStudent.classroom_id);
-            form.academic_year_id = parseNullableId(newStudent.academic_year_id);
-            form.gender_id = parseNullableId(newStudent.gender_id);
-            form.religion_id = parseNullableId(newStudent.religion_id);
-            form.student_status_id = parseNullableId(newStudent.student_status_id);
-            form.citizenship_id = parseNullableId(newStudent.citizenship_id);
+            studentForm.reset();
+            studentForm.clearErrors();
+            studentForm.school_id = parseNullableId(newStudent.school_id);
+            studentForm.major_id = parseNullableId(newStudent.major_id);
+            studentForm.classroom_id = parseNullableId(newStudent.classroom_id);
+            studentForm.academic_year_id = parseNullableId(newStudent.academic_year_id);
+            studentForm.gender_id = parseNullableId(newStudent.gender_id);
+            studentForm.religion_id = parseNullableId(newStudent.religion_id);
+            studentForm.student_status_id = parseNullableId(newStudent.student_status_id);
+            studentForm.citizenship_id = parseNullableId(newStudent.citizenship_id);
 
-            form.nisn = newStudent.nisn || '';
-            form.nis = newStudent.nis || '';
-            form.full_name = newStudent.full_name || '';
-            form.nickname = newStudent.nickname || '';
-            form.birth_place = newStudent.birth_place || '';
-            form.birth_date = formatDateForInput(newStudent.birth_date);
-            form.phone = newStudent.phone || '';
-            form.email = newStudent.email || '';
-            form.address = newStudent.address || '';
-            form.postal_code = newStudent.postal_code || '';
+            studentForm.nisn = newStudent.nisn || '';
+            studentForm.nis = newStudent.nis || '';
+            studentForm.full_name = newStudent.full_name || '';
+            studentForm.nickname = newStudent.nickname || '';
+            studentForm.birth_place = newStudent.birth_place || '';
+            studentForm.birth_date = formatDateForInput(newStudent.birth_date);
+            studentForm.phone = newStudent.phone || '';
+            studentForm.email = newStudent.email || '';
+            studentForm.address = newStudent.address || '';
+            studentForm.postal_code = newStudent.postal_code || '';
 
             resetDocumentFields();
             resetPhotoField();
 
             if (newStudent.family) {
-                form.family.father_name = newStudent.family.father_name || '';
-                form.family.father_occupation_id = parseNullableId(newStudent.family.father_occupation_id);
-                form.family.father_income_category_id = parseNullableId(newStudent.family.father_income_category_id);
-                form.family.father_phone = newStudent.family.father_phone || '';
-                form.family.mother_name = newStudent.family.mother_name || '';
-                form.family.mother_occupation_id = parseNullableId(newStudent.family.mother_occupation_id);
-                form.family.mother_income_category_id = parseNullableId(newStudent.family.mother_income_category_id);
-                form.family.mother_phone = newStudent.family.mother_phone || '';
-                form.family.guardian_name = newStudent.family.guardian_name || '';
-                form.family.guardian_occupation_id = parseNullableId(newStudent.family.guardian_occupation_id);
-                form.family.guardian_income_category_id = parseNullableId(newStudent.family.guardian_income_category_id);
-                form.family.guardian_phone = newStudent.family.guardian_phone || '';
-                form.family.emergency_contact_name = newStudent.family.emergency_contact_name || '';
-                form.family.emergency_contact_phone = newStudent.family.emergency_contact_phone || '';
-                form.family.relationship_type_id = parseNullableId(newStudent.family.relationship_type_id);
-                form.family.notes = newStudent.family.notes || '';
+                studentForm.family.father_name = newStudent.family.father_name || '';
+                studentForm.family.father_occupation_id = parseNullableId(newStudent.family.father_occupation_id);
+                studentForm.family.father_income_category_id = parseNullableId(newStudent.family.father_income_category_id);
+                studentForm.family.father_phone = newStudent.family.father_phone || '';
+                studentForm.family.mother_name = newStudent.family.mother_name || '';
+                studentForm.family.mother_occupation_id = parseNullableId(newStudent.family.mother_occupation_id);
+                studentForm.family.mother_income_category_id = parseNullableId(newStudent.family.mother_income_category_id);
+                studentForm.family.mother_phone = newStudent.family.mother_phone || '';
+                studentForm.family.guardian_name = newStudent.family.guardian_name || '';
+                studentForm.family.guardian_occupation_id = parseNullableId(newStudent.family.guardian_occupation_id);
+                studentForm.family.guardian_income_category_id = parseNullableId(newStudent.family.guardian_income_category_id);
+                studentForm.family.guardian_phone = newStudent.family.guardian_phone || '';
+                studentForm.family.emergency_contact_name = newStudent.family.emergency_contact_name || '';
+                studentForm.family.emergency_contact_phone = newStudent.family.emergency_contact_phone || '';
+                studentForm.family.relationship_type_id = parseNullableId(newStudent.family.relationship_type_id);
+                studentForm.family.notes = newStudent.family.notes || '';
             }
 
             if (newStudent.health) {
-                form.health.blood_type_id = parseNullableId(newStudent.health.blood_type_id);
-                form.health.height = formatNumberToString(newStudent.health.height);
-                form.health.weight = formatNumberToString(newStudent.health.weight);
-                form.health.allergies = newStudent.health.allergies || '';
-                form.health.medical_history = newStudent.health.medical_history || '';
-                form.health.disabilities = newStudent.health.disabilities || '';
-                form.health.medications = newStudent.health.medications || '';
-                form.health.hospital = newStudent.health.hospital || '';
-                form.health.doctor = newStudent.health.doctor || '';
-                form.health.notes = newStudent.health.notes || '';
+                studentForm.health.blood_type_id = parseNullableId(newStudent.health.blood_type_id);
+                studentForm.health.height = formatNumberToString(newStudent.health.height);
+                studentForm.health.weight = formatNumberToString(newStudent.health.weight);
+                studentForm.health.allergies = newStudent.health.allergies || '';
+                studentForm.health.medical_history = newStudent.health.medical_history || '';
+                studentForm.health.disabilities = newStudent.health.disabilities || '';
+                studentForm.health.medications = newStudent.health.medications || '';
+                studentForm.health.hospital = newStudent.health.hospital || '';
+                studentForm.health.doctor = newStudent.health.doctor || '';
+                studentForm.health.notes = newStudent.health.notes || '';
             }
 
-            form.education_histories = newStudent.education_histories
+            studentForm.education_histories = newStudent.education_histories
                 ? newStudent.education_histories.map((edu) => ({
                       ...edu,
                       education_level_id: parseNullableId(edu.education_level_id),
@@ -550,14 +554,14 @@ watch(
                   }))
                 : [];
 
-            form.socials = newStudent.socials
+            studentForm.socials = newStudent.socials
                 ? newStudent.socials.map((s) => ({
                       ...s,
                       social_platform_id: parseNullableId(s.social_platform_id),
                   }))
                 : [];
 
-            form.achievements = newStudent.achievements
+            studentForm.achievements = newStudent.achievements
                 ? newStudent.achievements.map((ach) => ({
                       ...ach,
                       rank: formatNumberToString(ach.rank),
@@ -566,7 +570,7 @@ watch(
                   }))
                 : [];
 
-            form.violations = newStudent.violations
+            studentForm.violations = newStudent.violations
                 ? newStudent.violations.map((vio) => ({
                       ...vio,
                       point: formatNumberToString(vio.point),
@@ -574,7 +578,7 @@ watch(
                   }))
                 : [];
         } else {
-            form.reset();
+            studentForm.reset();
             resetDocumentFields();
         }
     },
@@ -583,7 +587,7 @@ watch(
 
 // Dynamic Handlers
 const addEducation = () => {
-    form.education_histories.push({
+    studentForm.education_histories.push({
         education_level_id: null,
         school_name: '',
         npsn: '',
@@ -595,12 +599,12 @@ const addEducation = () => {
         notes: '',
     });
 };
-const removeEducation = (index: number) => form.education_histories.splice(index, 1);
+const removeEducation = (index: number) => studentForm.education_histories.splice(index, 1);
 const handleEducationCertificateChange = (event: Event, index: number) => {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
 
-    if (form.education_histories[index]) {
-form.education_histories[index].certificate = file;
+    if (studentForm.education_histories[index]) {
+studentForm.education_histories[index].certificate = file;
 }
 };
 const isEducationCertificateFile = (value: unknown): value is File => value instanceof File;
@@ -613,12 +617,12 @@ const previewEducationCertificate = (value: unknown, historyId?: number) => {
 };
 
 const addSocial = () => {
-    form.socials.push({ social_platform_id: null, username: '', url: '' });
+    studentForm.socials.push({ social_platform_id: null, username: '', url: '' });
 };
-const removeSocial = (index: number) => form.socials.splice(index, 1);
+const removeSocial = (index: number) => studentForm.socials.splice(index, 1);
 
 const addAchievement = () => {
-    form.achievements.push({
+    studentForm.achievements.push({
         title: '',
         organizer: '',
         level: '',
@@ -629,13 +633,13 @@ const addAchievement = () => {
         certificate: null,
     });
 };
-const removeAchievement = (index: number) => form.achievements.splice(index, 1);
+const removeAchievement = (index: number) => studentForm.achievements.splice(index, 1);
 
 const handleCertificateFileChange = (event: Event, index: number) => {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
 
-    if (form.achievements[index]) {
-        form.achievements[index].certificate = file;
+    if (studentForm.achievements[index]) {
+        studentForm.achievements[index].certificate = file;
     }
 };
 
@@ -674,9 +678,9 @@ const normalizeScoreInput = (edu: EducationHistoryForm) => {
 };
 
 const addViolation = () => {
-    form.violations.push({ title: '', point: '', violation_date: '', description: '' });
+    studentForm.violations.push({ title: '', point: '', violation_date: '', description: '' });
 };
-const removeViolation = (index: number) => form.violations.splice(index, 1);
+const removeViolation = (index: number) => studentForm.violations.splice(index, 1);
 
 const deleteDocument = (documentId: number) => {
     if (!props.student || !confirm('Apakah Anda yakin ingin menghapus dokumen ini?')) {
@@ -693,11 +697,11 @@ return;
 };
 
 const handleCancel = () => {
-    if (form.processing) {
+    if (studentForm.processing) {
 return;
 }
 
-    form.clearErrors();
+    studentForm.clearErrors();
     currentStepIndex.value = 0;
     resetDocumentFields();
     resetPhotoField();
@@ -710,11 +714,11 @@ const handleSubmit = async () => {
     }
 
     const requiredAcademicIds = {
-        school_id: parseNullableId(form.school_id),
-        major_id: parseNullableId(form.major_id),
-        classroom_id: parseNullableId(form.classroom_id),
-        academic_year_id: parseNullableId(form.academic_year_id),
-        student_status_id: parseNullableId(form.student_status_id),
+        school_id: parseNullableId(studentForm.school_id),
+        major_id: parseNullableId(studentForm.major_id),
+        classroom_id: parseNullableId(studentForm.classroom_id),
+        academic_year_id: parseNullableId(studentForm.academic_year_id),
+        student_status_id: parseNullableId(studentForm.student_status_id),
     };
 
     const missingRequired = Object.entries(requiredAcademicIds).find(
@@ -731,7 +735,7 @@ const handleSubmit = async () => {
         return;
     }
 
-    if (isDocumentTypeExists.value && form.new_document_file) {
+    if (isDocumentTypeExists.value && studentForm.new_document_file) {
         if (!confirm('Jenis dokumen ini sudah ada. Lanjutkan untuk mengganti dokumen lama?')) {
             currentStepIndex.value = steps.findIndex((s) => s.id === 'documents');
 
@@ -739,7 +743,7 @@ const handleSubmit = async () => {
         }
     }
 
-    form.transform((data) => ({
+    studentForm.transform((data) => ({
         ...data,
         school_id: parseNullableId(data.school_id),
         major_id: parseNullableId(data.major_id),
@@ -798,7 +802,7 @@ const handleSubmit = async () => {
         })),
     }));
 
-    if (form.photo_file) {
+    if (studentForm.photo_file) {
         await prepareCroppedPhoto();
     }
 
@@ -839,12 +843,12 @@ const handleSubmit = async () => {
     };
 
     if (props.student && props.student.id) {
-        form.post(updateStudent.url(props.student.id), {
+        studentForm.post(updateStudent.url(props.student.id), {
             onSuccess: onSuccessHandler,
             onError: handleFormErrors,
         });
     } else {
-        form.post(storeStudent.url(), {
+        studentForm.post(storeStudent.url(), {
             onSuccess: onSuccessHandler,
             onError: handleFormErrors,
         });
@@ -951,13 +955,13 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                         <span>Pilih Foto</span>
                                         <input type="file" accept="image/*" class="hidden" @change="handlePhotoFileChange" />
                                     </label>
-                                    <Button v-if="studentPhotoSrc" type="button" variant="outline" size="sm" class="h-8 text-xs rounded-lg" @click="isPhotoCropOpen = true">
+                                    <Button v-if="studentForm.photo_file" type="button" variant="outline" size="sm" class="h-8 text-xs rounded-lg" @click="isPhotoCropOpen = true">
                                         <Crop class="mr-1 h-3.5 w-3.5" /> Atur Posisi
                                     </Button>
                                     <Button v-if="studentPhotoSrc" type="button" variant="outline" size="sm" class="h-8 text-xs rounded-lg" @click="openFilePreview(studentPhotoSrc, 'Foto siswa', 'image/*')">
                                         <Eye class="mr-1 h-3.5 w-3.5" /> Lihat Foto
                                     </Button>
-                                    <Button v-if="form.photo_file" type="button" variant="ghost" size="sm" class="h-8 text-xs text-red-500 hover:bg-red-50 hover:text-red-600 rounded-lg" @click="resetPhotoField">
+                                    <Button v-if="studentForm.photo_file" type="button" variant="ghost" size="sm" class="h-8 text-xs text-red-500 hover:bg-red-50 hover:text-red-600 rounded-lg" @click="resetPhotoField">
                                         Reset
                                     </Button>
                                 </div>
@@ -967,103 +971,104 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label :class="labelClass">Nama Lengkap <span class="text-red-500">*</span></label>
-                                <Input v-model="form.full_name" placeholder="Nama Lengkap Siswa" :class="inputClass" required />
-                                <span v-if="form.full_name" class="text-[11px] text-red-500 mt-1 block">{{ form.errors.full_name }}</span>
+                                <Input v-model="studentForm.full_name" placeholder="Nama Lengkap Siswa" :class="inputClass" required />
+                                <span v-if="studentForm.full_name" class="text-[11px] text-red-500 mt-1 block">{{ studentForm.errors.full_name }}</span>
                             </div>
                             <div>
                                 <label :class="labelClass">Nama Panggilan</label>
-                                <Input v-model="form.nickname" placeholder="Nama Panggilan" :class="inputClass" />
+                                <Input v-model="studentForm.nickname" placeholder="Nama Panggilan" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">NISN <span class="text-red-500">*</span></label>
-                                <Input type="text" inputmode="numeric" maxlength="10" v-model="form.nisn" placeholder="00xxxxxxxx" :class="inputClass" required />
-                                <span v-if="form.nisn" class="text-[11px] text-red-500 mt-1 block">{{ form.errors.nisn }}</span>
+                                <Input type="text" inputmode="numeric" maxlength="10" v-model="studentForm.nisn" placeholder="00xxxxxxxx" :class="inputClass" required />
+                                <span v-if="studentForm.nisn" class="text-[11px] text-red-500 mt-1 block">{{ studentForm.errors.nisn }}</span>
                             </div>
                             <div>
                                 <label :class="labelClass">NIS</label>
-                                <Input type="text" inputmode="numeric" maxlength="5" v-model="form.nis" placeholder="Nomor Induk Sekolah" :class="inputClass" />
+                                <Input type="text" inputmode="numeric" maxlength="5" v-model="studentForm.nis" placeholder="Nomor Induk Sekolah" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Jenis Kelamin <span class="text-red-500">*</span></label>
-                                <select v-model="form.gender_id" :class="selectClass" required>
+                                <select v-model="studentForm.gender_id" :class="selectClass" required>
                                     <option :value="null">Pilih Jenis Kelamin</option>
                                     <option v-for="g in props.genders" :key="g.id" :value="g.id">{{ g.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Kewarganegaraan</label>
-                                <select v-model="form.citizenship_id" :class="selectClass">
+                                <select v-model="studentForm.citizenship_id" :class="selectClass">
                                     <option :value="null">Pilih Kewarganegaraan</option>
                                     <option v-for="c in props.citizenships" :key="c.id" :value="c.id">{{ c.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Agama</label>
-                                <select v-model="form.religion_id" :class="selectClass">
+                                <select v-model="studentForm.religion_id" :class="selectClass">
                                     <option :value="null">Pilih Agama</option>
                                     <option v-for="r in props.religions" :key="r.id" :value="r.id">{{ r.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Tempat Lahir</label>
-                                <Input v-model="form.birth_place" placeholder="Kota Lahir" :class="inputClass" />
+                                <Input v-model="studentForm.birth_place" placeholder="Kota Lahir" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Tanggal Lahir</label>
-                                <Input type="date" v-model="form.birth_date" :class="inputClass" />
+                                <Input type="date" v-model="studentForm.birth_date" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Sekolah <span class="text-red-500">*</span></label>
-                                <select v-model="form.school_id" :class="selectClass" required @change="handleSchoolChange">
+                                <select v-model="studentForm.school_id" :class="selectClass" required @change="handleSchoolChange">
                                     <option :value="null">Pilih Sekolah</option>
                                     <option v-for="s in props.schools" :key="s.id" :value="s.id">{{ s.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Jurusan</label>
-                                <select v-model="form.major_id" :class="selectClass" @change="handleMajorChange">
+                                <select v-model="studentForm.major_id" :class="selectClass" @change="handleMajorChange">
                                     <option :value="null">Pilih Jurusan</option>
                                     <option v-for="m in filteredMajors" :key="m.id" :value="m.id">{{ m.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Kelas</label>
-                                <select v-model="form.classroom_id" :class="selectClass">
+                                <select v-model="studentForm.classroom_id" :class="selectClass">
                                     <option :value="null">Pilih Kelas</option>
                                     <option v-for="c in filteredClassrooms" :key="c.id" :value="c.id">{{ c.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Tahun Ajaran <span class="text-red-500">*</span></label>
-                                <select v-model="form.academic_year_id" :class="selectClass" required>
+                                <select v-model="studentForm.academic_year_id" :class="selectClass" required>
                                     <option :value="null">Pilih Tahun Ajaran</option>
                                     <option v-for="ay in props.academicYears" :key="ay.id" :value="ay.id">{{ ay.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Status Siswa</label>
-                                <select v-model="form.student_status_id" :class="selectClass">
+                                <select v-model="studentForm.student_status_id" :class="selectClass">
                                     <option :value="null">Pilih Status</option>
                                     <option v-for="st in props.studentStatuses" :key="st.id" :value="st.id">{{ st.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">No. WhatsApp / Telepon</label>
-                                <Input type="text" inputmode="tel" v-model="form.phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                <Input type="text" inputmode="tel" v-model="studentForm.phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Email</label>
-                                <Input type="email" v-model="form.email" placeholder="siswa@sekolah.sch.id" :class="inputClass" />
+                                <Input type="email" v-model="studentForm.email" placeholder="siswa@sekolah.sch.id" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-2">
                                 <label :class="labelClass">Alamat Lengkap</label>
-                                <Input v-model="form.address" placeholder="Jl. Raya No. 1..." :class="inputClass" />
+                                <Input v-model="studentForm.address" placeholder="Jl. Raya No. 1..." :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Kode Pos</label>
-                                <Input type="text" inputmode="numeric" v-model="form.postal_code" placeholder="xxxxx" :class="inputClass" />
+                                <Input type="text" inputmode="numeric" v-model="studentForm.postal_code" placeholder="xxxxx" :class="inputClass" />
                             </div>
                         </div>
+
                     </div>
 
                     <div v-show="currentStep.id === 'family'" class="space-y-6">
@@ -1078,25 +1083,25 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                     <label :class="labelClass">Nama Ayah<span class="text-red-500">*</span></label>
-                                    <Input v-model="form.family.father_name" placeholder="Nama Ayah" :class="inputClass" required />
+                                    <Input v-model="studentForm.family.father_name" placeholder="Nama Ayah" :class="inputClass" required />
                                 </div>
                                 <div>
                                     <label :class="labelClass">Pekerjaan</label>
-                                    <select v-model="form.family.father_occupation_id" :class="selectClass">
+                                    <select v-model="studentForm.family.father_occupation_id" :class="selectClass">
                                         <option :value="null">Pilih Pekerjaan</option>
                                         <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">Penghasilan</label>
-                                    <select v-model="form.family.father_income_category_id" :class="selectClass">
+                                    <select v-model="studentForm.family.father_income_category_id" :class="selectClass">
                                         <option :value="null">Pilih Penghasilan</option>
                                         <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">No HP Ayah</label>
-                                    <Input type="text" inputmode="tel" v-model="form.family.father_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                    <Input type="text" inputmode="tel" v-model="studentForm.family.father_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
                                 </div>
                             </div>
                         </div>
@@ -1106,25 +1111,25 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                     <label :class="labelClass">Nama Ibu<span class="text-red-500">*</span></label>
-                                    <Input v-model="form.family.mother_name" placeholder="Nama Ibu" :class="inputClass" required />
+                                    <Input v-model="studentForm.family.mother_name" placeholder="Nama Ibu" :class="inputClass" required />
                                 </div>
                                 <div>
                                     <label :class="labelClass">Pekerjaan</label>
-                                    <select v-model="form.family.mother_occupation_id" :class="selectClass">
+                                    <select v-model="studentForm.family.mother_occupation_id" :class="selectClass">
                                         <option :value="null">Pilih Pekerjaan</option>
                                         <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">Penghasilan</label>
-                                    <select v-model="form.family.mother_income_category_id" :class="selectClass">
+                                    <select v-model="studentForm.family.mother_income_category_id" :class="selectClass">
                                         <option :value="null">Pilih Penghasilan</option>
                                         <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">No HP Ibu</label>
-                                    <Input type="text" inputmode="tel" v-model="form.family.mother_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                    <Input type="text" inputmode="tel" v-model="studentForm.family.mother_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
                                 </div>
                             </div>
                         </div>
@@ -1134,25 +1139,25 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                     <label :class="labelClass">Nama Wali</label>
-                                    <Input v-model="form.family.guardian_name" placeholder="Nama Wali" :class="inputClass" />
+                                    <Input v-model="studentForm.family.guardian_name" placeholder="Nama Wali" :class="inputClass" />
                                 </div>
                                 <div>
                                     <label :class="labelClass">Pekerjaan</label>
-                                    <select v-model="form.family.guardian_occupation_id" :class="selectClass">
+                                    <select v-model="studentForm.family.guardian_occupation_id" :class="selectClass">
                                         <option :value="null">Pilih Pekerjaan</option>
                                         <option v-for="occ in props.occupations" :key="occ.id" :value="occ.id">{{ occ.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">Penghasilan</label>
-                                    <select v-model="form.family.guardian_income_category_id" :class="selectClass">
+                                    <select v-model="studentForm.family.guardian_income_category_id" :class="selectClass">
                                         <option :value="null">Pilih Penghasilan</option>
                                         <option v-for="inc in props.incomeCategories" :key="inc.id" :value="inc.id">{{ inc.name }}</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label :class="labelClass">No HP Wali</label>
-                                    <Input type="text" inputmode="tel" v-model="form.family.guardian_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                    <Input type="text" inputmode="tel" v-model="studentForm.family.guardian_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
                                 </div>
                             </div>
                         </div>
@@ -1162,19 +1167,37 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                 <div>
                                     <label :class="labelClass">Nama Kontak Darurat<span class="text-red-500">*</span></label>
-                                    <Input v-model="form.family.emergency_contact_name" placeholder="Nama Penanggung Jawab" :class="inputClass" required />
+                                    <Input v-model="studentForm.family.emergency_contact_name" placeholder="Nama Penanggung Jawab" :class="inputClass" required />
                                 </div>
                                 <div>
                                     <label :class="labelClass">No HP Darurat</label>
-                                    <Input type="text" inputmode="tel" v-model="form.family.emergency_contact_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
+                                    <Input type="text" inputmode="tel" v-model="studentForm.family.emergency_contact_phone" placeholder="08xxxxxxxxxx" :class="inputClass" />
                                 </div>
                                 <div>
                                     <label :class="labelClass">Hubungan</label>
-                                    <select v-model="form.family.relationship_type_id" :class="selectClass">
+                                    <select v-model="studentForm.family.relationship_type_id" :class="selectClass">
                                         <option :value="null">Pilih Hubungan</option>
                                         <option v-for="rel in props.relationshipTypes" :key="rel.id" :value="rel.id">{{ rel.name }}</option>
                                     </select>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="family-notes" :class="labelClass">Catatan Keluarga</label>
+                            <p class="mb-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                Tambahkan informasi keluarga yang perlu diketahui sekolah.
+                            </p>
+                            <textarea
+                                id="family-notes"
+                                v-model="studentForm.family.notes"
+                                rows="4"
+                                maxlength="2000"
+                                placeholder="Contoh: kondisi khusus, kebutuhan pendampingan, atau informasi penting lainnya…"
+                                class="w-full resize-y rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm leading-relaxed text-neutral-900 shadow-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-400 focus:ring-4 focus:ring-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:focus:border-neutral-600 dark:focus:ring-neutral-800/60"
+                            />
+                            <div class="mt-1 flex justify-end text-[11px] text-neutral-400">
+                                {{ studentForm.family.notes.length }}/2000
                             </div>
                         </div>
                     </div>
@@ -1188,42 +1211,42 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>
                                 <label :class="labelClass">Golongan Darah</label>
-                                <select v-model="form.health.blood_type_id" :class="selectClass">
+                                <select v-model="studentForm.health.blood_type_id" :class="selectClass">
                                     <option :value="null">Pilih Golongan Darah</option>
                                     <option v-for="bt in props.bloodTypes" :key="bt.id" :value="bt.id">{{ bt.name }}</option>
                                 </select>
                             </div>
                             <div>
                                 <label :class="labelClass">Tinggi Badan (cm)</label>
-                                <Input type="text" inputmode="numeric" v-model="form.health.height" placeholder="170" :class="inputClass" />
+                                <Input type="text" inputmode="numeric" v-model="studentForm.health.height" placeholder="170" :class="inputClass" />
                             </div>
                             <div>
                                 <label :class="labelClass">Berat Badan (kg)</label>
-                                <Input type="text" inputmode="numeric" v-model="form.health.weight" placeholder="60" :class="inputClass" />
+                                <Input type="text" inputmode="numeric" v-model="studentForm.health.weight" placeholder="60" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-3">
                                 <label :class="labelClass">Alergi Makanan / Obat</label>
-                                <Input v-model="form.health.allergies" placeholder="Catatan alergi jika ada" :class="inputClass" />
+                                <Input v-model="studentForm.health.allergies" placeholder="Catatan alergi jika ada" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-3">
                                 <label :class="labelClass">Riwayat Penyakit Khusus / Disabilitas</label>
-                                <Input v-model="form.health.medical_history" placeholder="Riwayat kesehatan yang perlu diperhatikan" :class="inputClass" />
+                                <Input v-model="studentForm.health.medical_history" placeholder="Riwayat kesehatan yang perlu diperhatikan" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-1">
                                 <label :class="labelClass">Dokter Pribadi</label>
-                                <Input v-model="form.health.doctor" placeholder="DR. Contoh " :class="inputClass" />
+                                <Input v-model="studentForm.health.doctor" placeholder="DR. Contoh " :class="inputClass" />
                             </div>
                             <div class="sm:col-span-1">
                                 <label :class="labelClass">Rumah Sakit</label>
-                                <Input v-model="form.health.hospital" placeholder="Rumah Sakit Contoh" :class="inputClass" />
+                                <Input v-model="studentForm.health.hospital" placeholder="Rumah Sakit Contoh" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-1">
                                 <label :class="labelClass">Pengobatan</label>
-                                <Input v-model="form.health.medications" placeholder="Nama obat / alamat rumah sakit" :class="inputClass" />
+                                <Input v-model="studentForm.health.medications" placeholder="Nama obat / alamat rumah sakit" :class="inputClass" />
                             </div>
                             <div class="sm:col-span-3">
                                 <label :class="labelClass">Catatan Kesehatan</label>
-                                <Input v-model="form.health.notes" placeholder="Catatan kesehatan tambahan" :class="inputClass" />
+                                <Input v-model="studentForm.health.notes" placeholder="Catatan kesehatan tambahan" :class="inputClass" />
                             </div>
                         </div>
                     </div>
@@ -1238,11 +1261,11 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             </Button>
                         </div>
 
-                        <div v-if="form.education_histories.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                        <div v-if="studentForm.education_histories.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
                             <p class="text-xs text-neutral-400 font-medium">Belum ada data riwayat sekolah sebelumnya.</p>
                         </div>
 
-                        <div v-for="(edu, idx) in form.education_histories" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                        <div v-for="(edu, idx) in studentForm.education_histories" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
                             <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeEducation(idx)">
                                 <Trash2 class="h-4 w-4" />
                             </button>
@@ -1261,6 +1284,10 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                 <div>
                                     <label :class="labelClass">NPSN Sekolah</label>
                                     <Input type="text" inputmode="numeric" maxlength="10" v-model="edu.npsn" placeholder="312312" :class="inputClass" />
+                                </div>
+                                <div class="sm:col-span-3">
+                                    <label :class="labelClass">Alamat Sekolah</label>
+                                    <Input v-model="edu.address" placeholder="Alamat lengkap sekolah" :class="inputClass" />
                                 </div>
                                 <div>
                                     <label :class="labelClass">Tahun Masuk</label>
@@ -1308,11 +1335,11 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             </Button>
                         </div>
 
-                        <div v-if="form.socials.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                        <div v-if="studentForm.socials.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
                             <p class="text-xs text-neutral-400 font-medium">Belum ada akun media sosial yang didaftarkan.</p>
                         </div>
 
-                        <div v-for="(soc, idx) in form.socials" :key="idx" class="flex items-center gap-3 rounded-xl border border-neutral-200/80 p-3 dark:border-neutral-800">
+                        <div v-for="(soc, idx) in studentForm.socials" :key="idx" class="flex items-center gap-3 rounded-xl border border-neutral-200/80 p-3 dark:border-neutral-800">
                             <div class="w-1/3">
                                 <label :class="labelClass">Platform</label>
                                 <select v-model="soc.social_platform_id" :class="selectClass">
@@ -1344,11 +1371,11 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             </Button>
                         </div>
 
-                        <div v-if="form.achievements.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                        <div v-if="studentForm.achievements.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
                             <p class="text-xs text-neutral-400 font-medium">Belum ada data prestasi yang dicatat.</p>
                         </div>
 
-                        <div v-for="(ach, idx) in form.achievements" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                        <div v-for="(ach, idx) in studentForm.achievements" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
                             <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeAchievement(idx)">
                                 <Trash2 class="h-4 w-4" />
                             </button>
@@ -1408,8 +1435,8 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                     </div>
                                     
                                     <!-- Error Message dari Inertia -->
-                                    <p v-if="form.errors[`achievements.${idx}.certificate`]" class="mt-1 text-xs text-red-500">
-                                        {{ form.errors[`achievements.${idx}.certificate`] }}
+                                    <p v-if="studentForm.errors[`achievements.${idx}.certificate`]" class="mt-1 text-xs text-red-500">
+                                        {{ studentForm.errors[`achievements.${idx}.certificate`] }}
                                     </p>
                                 </div>
 
@@ -1431,11 +1458,11 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             </Button>
                         </div>
 
-                        <div v-if="form.violations.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
+                        <div v-if="studentForm.violations.length === 0" class="py-12 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl">
                             <p class="text-xs text-neutral-400 font-medium">Siswa tidak memiliki rekam pelanggaran.</p>
                         </div>
 
-                        <div v-for="(vio, idx) in form.violations" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
+                        <div v-for="(vio, idx) in studentForm.violations" :key="idx" class="rounded-xl border border-neutral-200/80 p-4 dark:border-neutral-800 relative space-y-3">
                             <button type="button" class="absolute top-3 right-3 text-neutral-400 hover:text-red-500 transition-colors" @click="removeViolation(idx)">
                                 <Trash2 class="h-4 w-4" />
                             </button>
@@ -1472,7 +1499,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div>
                                     <label :class="labelClass">Jenis Dokumen</label>
-                                    <select v-model="form.document_type_id" :class="selectClass">
+                                    <select v-model="studentForm.document_type_id" :class="selectClass">
                                         <option :value="null">Pilih Tipe Dokumen</option>
                                         <option v-for="dt in props.documentTypes" :key="dt.id" :value="dt.id">{{ dt.name }}</option>
                                     </select>
@@ -1482,7 +1509,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                         >Keterangan / Nama Dokumen</Label
                                     >
                                     <Input
-                                        v-model="form.new_document_notes"
+                                        v-model="studentForm.new_document_notes"
                                         placeholder="Misal: Ijazah SMP, KK, Akta"
                                         class="text-sm"
                                     />
@@ -1490,7 +1517,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                 <div>
                                     <label :class="labelClass">File Berkas (PDF / Gambar)</label>
                                     <Input type="file" @change="handleDocumentFileChange" class="h-10 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-neutral-200 file:text-neutral-700 hover:file:bg-neutral-300 dark:file:bg-neutral-800 dark:file:text-neutral-300" />
-                                    <Button v-if="form.new_document_file" type="button" variant="outline" size="sm" class="mt-2 h-8 text-xs" @click="openUploadPreview(form.new_document_file, form.new_document_notes || form.new_document_file.name)"><Eye class="mr-1 h-3.5 w-3.5" /> Lihat berkas</Button>
+                                    <Button v-if="studentForm.new_document_file" type="button" variant="outline" size="sm" class="mt-2 h-8 text-xs" @click="openUploadPreview(studentForm.new_document_file, studentForm.new_document_notes || studentForm.new_document_file.name)"><Eye class="mr-1 h-3.5 w-3.5" /> Lihat berkas</Button>
                                 </div>
                             </div>
                             <p v-if="isDocumentTypeExists" class="text-[11px] font-medium text-amber-600 dark:text-amber-400">
@@ -1527,7 +1554,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                 </div>
 
                 <div class="flex shrink-0 items-center justify-between border-t border-neutral-100 bg-neutral-50/50 p-4 dark:border-neutral-800 dark:bg-neutral-950/50">
-                    <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-medium rounded-lg text-neutral-500 hover:text-neutral-900 dark:hover:text-white" @click="handleCancel" :disabled="form.processing">
+                    <Button type="button" variant="ghost" class="h-9 px-4 text-xs font-medium rounded-lg text-neutral-500 hover:text-neutral-900 dark:hover:text-white" @click="handleCancel" :disabled="isFormProcessing">
                         Batal
                     </Button>
                     <div class="flex items-center gap-2">
@@ -1537,8 +1564,8 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                         <Button v-if="!isLastStep" type="button" @click="nextStep" class="h-9 px-4 text-xs rounded-lg bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 font-medium">
                             Lanjut <ChevronRight class="ml-1 h-3.5 w-3.5" />
                         </Button>
-                        <Button v-else type="submit" :disabled="form.processing || isReadOnlyForStudent" class="h-9 px-5 text-xs rounded-lg bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                            <Loader2 v-if="form.processing" class="mr-2 h-3.5 w-3.5 animate-spin" />
+                        <Button v-else type="submit" :disabled="isFormProcessing || isReadOnlyForStudent" class="h-9 px-5 text-xs rounded-lg bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <Loader2 v-if="isFormProcessing" class="mr-2 h-3.5 w-3.5 animate-spin" />
                             <span v-if="isReadOnlyForStudent">Data Terverifikasi (Terkunci)</span>
                             <span v-else>Simpan Perubahan</span>
                         </Button>
@@ -1560,25 +1587,39 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
             </section>
         </div>
 
-        <div v-if="isPhotoCropOpen && form.photo_file" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div v-if="shouldShowPhotoCrop" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div class="w-full max-w-sm rounded-2xl bg-neutral-900 p-5 text-white shadow-2xl border border-neutral-800 space-y-4">
                 <div class="flex items-center justify-between border-b border-neutral-800 pb-3">
                     <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-300">Penyesuaian Foto</h3>
                     <span class="text-[10px] text-neutral-500">Geser untuk memposisikan</span>
                 </div>
                 
-                <div class="relative h-60 w-full overflow-hidden rounded-xl border border-neutral-800 bg-black cursor-move select-none"
+                <div class="relative h-60 w-full touch-none overflow-hidden rounded-xl border border-neutral-800 bg-black cursor-move select-none"
                     @pointerdown="handleCropPointerDown"
                     @pointermove="handleCropPointerMove"
                     @pointerup="handleCropPointerEnd"
                     @pointercancel="handleCropPointerEnd"
                 >
-                    <img v-if="studentPhotoSrc" :src="studentPhotoSrc" class="absolute h-full w-full object-contain pointer-events-none"
+                    <img v-if="studentPhotoSrc" :src="studentPhotoSrc" class="pointer-events-none absolute h-full w-full object-cover"
                         :style="{
                             transform: `scale(${photoZoom / 100})`,
                             transformOrigin: `${photoPosition.x}% ${photoPosition.y}%`,
+                            objectPosition: `${photoPosition.x}% ${photoPosition.y}%`,
                         }"
                     />
+                </div>
+
+                <p class="text-[11px] text-neutral-400">Geser foto atau gunakan pengatur posisi untuk memilih bagian yang masuk ke bingkai.</p>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <label class="space-y-1 text-[11px] text-neutral-400">
+                        <span class="flex justify-between"><span>Horizontal</span><span>{{ Math.round(photoPosition.x) }}%</span></span>
+                        <input v-model.number="photoPosition.x" type="range" min="0" max="100" class="w-full accent-white" />
+                    </label>
+                    <label class="space-y-1 text-[11px] text-neutral-400">
+                        <span class="flex justify-between"><span>Vertikal</span><span>{{ Math.round(photoPosition.y) }}%</span></span>
+                        <input v-model.number="photoPosition.y" type="range" min="0" max="100" class="w-full accent-white" />
+                    </label>
                 </div>
 
                 <div class="space-y-3">

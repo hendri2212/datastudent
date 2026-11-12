@@ -323,7 +323,15 @@ class StudentController extends Controller
                 || (filled($user->email) && filled($student->email)
                     && strcasecmp((string) $user->email, (string) $student->email) === 0));
 
-        if (! $user || (! $user->can('manage-students') && ! $isStudentOwner)) {
+        if (! $user) {
+            abort(403, 'Anda tidak memiliki akses ke foto siswa ini.');
+        }
+
+        if (! $user->can('manage-students') && ! $isStudentOwner) {
+            if ($user->isStudent()) {
+                return redirect()->route('home');
+            }
+
             abort(403, 'Anda tidak memiliki akses ke foto siswa ini.');
         }
 

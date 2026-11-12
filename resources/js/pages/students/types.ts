@@ -4,6 +4,7 @@ export type NumericInput = number | string | null;
 export interface School {
     id: number;
     name: string;
+    address?: string | null;
 }
 
 export interface Major {

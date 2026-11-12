@@ -1841,6 +1841,26 @@ const handleSubmit = async () => {
                             </div>
                         </div>
                     </div>
+
+                    <div class="space-y-1.5 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                        <Label for="family-notes" class="text-xs font-semibold">
+                            Catatan Keluarga
+                        </Label>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                            Informasi tambahan tentang keluarga yang perlu diketahui sekolah.
+                        </p>
+                        <textarea
+                            id="family-notes"
+                            v-model="form.family.notes"
+                            rows="4"
+                            maxlength="2000"
+                            placeholder="Contoh: kondisi khusus atau kebutuhan pendampingan."
+                            class="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-neutral-400 focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <p class="text-right text-[11px] text-neutral-400">
+                            {{ form.family.notes.length }}/2000
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Tab Kesehatan -->

@@ -12,16 +12,7 @@ class LoginResponse implements LoginResponseContract
     public function toResponse($request)
     {
         $user = Auth::user();
-        $role = null;
-
-        if ($user) {
-            $role = $user->role;
-            if ($role instanceof \App\Enums\UserRole) {
-                $role = $role->value;
-            }
-        }
-
-        if ($role === 'student') {
+        if ($user?->role === 'student') {
             return $request->wantsJson()
                 ? response()->json(['two_factor' => false])
                 : redirect()->route('home');
@@ -29,6 +20,6 @@ class LoginResponse implements LoginResponseContract
 
         return $request->wantsJson()
             ? response()->json(['two_factor' => false])
-            : redirect()->intended(config('fortify.home'));
+            : redirect()->route('dashboard');
     }
 }
