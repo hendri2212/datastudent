@@ -73,6 +73,25 @@ class StudentAchievementController extends Controller
         return back()->with('success', 'Prestasi siswa berhasil dihapus.');
     }
 
+    public function destroyCertificate(Request $request, StudentAchievement $achievement): RedirectResponse
+    {
+        $student = $achievement->student;
+        $user = $request->user();
+        $isStudentOwner = $user
+            && ($student->user_id === $user->id
+                || (filled($user->email) && filled($student->email)
+                    && strcasecmp((string) $user->email, (string) $student->email) === 0));
+
+        abort_unless($user && ($user->can('manage-students') || $isStudentOwner), 403);
+
+        if ($achievement->certificate) {
+            Storage::disk('public')->delete($achievement->certificate);
+            $achievement->update(['certificate' => null]);
+        }
+
+        return back()->with('success', 'Sertifikat berhasil dihapus.');
+    }
+
     public function downloadCertificate(StudentAchievement $achievement): BinaryFileResponse
     {
         if (!$achievement->certificate || !Storage::disk('public')->exists($achievement->certificate)) {

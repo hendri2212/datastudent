@@ -43,10 +43,20 @@ class StudentDocumentController extends Controller
     /**
      * Mengunduh berkas dokumen siswa.
      */
-    public function download(Student $student, StudentDocument $document): BinaryFileResponse
+    public function download(Request $request, Student $student, StudentDocument $document): BinaryFileResponse
     {
         if ($document->student_id !== $student->id) {
             abort(404, 'Dokumen tidak ditemukan untuk siswa ini.');
+        }
+
+        $user = $request->user();
+        $isStudentOwner = $user
+            && ($student->user_id === $user->id
+                || (filled($user->email) && filled($student->email)
+                    && strcasecmp((string) $user->email, (string) $student->email) === 0));
+
+        if (! $user || (! $user->can('manage-students') && ! $isStudentOwner)) {
+            abort(403, 'Anda tidak memiliki akses ke dokumen ini.');
         }
 
         $disk = $document->disk ?? 'private';
@@ -115,10 +125,20 @@ class StudentDocumentController extends Controller
     /**
      * Menghapus dokumen (Soft Delete sesuai migrasi).
      */
-    public function destroy(Student $student, StudentDocument $document): RedirectResponse
+    public function destroy(Request $request, Student $student, StudentDocument $document): RedirectResponse
     {
         if ($document->student_id !== $student->id) {
             abort(403, 'Aksi tidak diizinkan.');
+        }
+
+        $user = $request->user();
+        $isStudentOwner = $user
+            && ($student->user_id === $user->id
+                || (filled($user->email) && filled($student->email)
+                    && strcasecmp((string) $user->email, (string) $student->email) === 0));
+
+        if (! $user || (! $user->can('manage-students') && ! $isStudentOwner)) {
+            abort(403, 'Anda tidak memiliki akses untuk menghapus dokumen ini.');
         }
 
         $this->documents->delete($document);

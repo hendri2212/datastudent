@@ -327,7 +327,24 @@ class StudentService
             }
         }
 
-        $student->educationHistories()->whereNotIn('id', $kept)->delete();
+        $removedHistories = $student->educationHistories()
+            ->whereNotIn('id', $kept)
+            ->get(['id', 'certificate']);
+        $certificatePaths = $removedHistories->pluck('certificate')->filter()->values()->all();
+
+        if ($removedHistories->isNotEmpty()) {
+            $student->educationHistories()->whereIn('id', $removedHistories->modelKeys())->delete();
+        }
+
+        if ($certificatePaths !== []) {
+            DB::afterCommit(static function () use ($certificatePaths): void {
+                foreach ($certificatePaths as $path) {
+                    if (Storage::disk('local')->exists($path)) {
+                        Storage::disk('local')->delete($path);
+                    }
+                }
+            });
+        }
     }
 
     /** @param array<string, mixed> $data */
@@ -395,7 +412,24 @@ class StudentService
             }
         }
 
-        $student->achievements()->whereNotIn('id', $kept)->delete();
+        $removedAchievements = $student->achievements()
+            ->whereNotIn('id', $kept)
+            ->get(['id', 'certificate']);
+        $certificatePaths = $removedAchievements->pluck('certificate')->filter()->values()->all();
+
+        if ($removedAchievements->isNotEmpty()) {
+            $student->achievements()->whereIn('id', $removedAchievements->modelKeys())->delete();
+        }
+
+        if ($certificatePaths !== []) {
+            DB::afterCommit(static function () use ($certificatePaths): void {
+                foreach ($certificatePaths as $path) {
+                    if (Storage::disk('public')->exists($path)) {
+                        Storage::disk('public')->delete($path);
+                    }
+                }
+            });
+        }
     }
 
     /** @param array<string, mixed> $data */

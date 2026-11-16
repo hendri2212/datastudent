@@ -13,9 +13,9 @@ import {
     Trash2,
     Shield,
     Eye,
-    X,
+    Download,
 } from 'lucide-vue-next';
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -31,7 +31,7 @@ import {
     store as storeStudent,
     update as updateStudent,
 } from '@/routes/students';
-import { destroy as destroyDocument } from '@/routes/students/documents';
+import { destroy as destroyDocument, download as downloadDocument } from '@/routes/students/documents';
 import { preview as previewDocument } from '@/routes/students/documents';
 
 // Import Types
@@ -85,6 +85,20 @@ const isStudentVerified = computed(() => Boolean(props.student?.verified_at));
 const isReadOnlyForStudent = computed(() => isStudentUser.value && isStudentVerified.value);
 
 const activeTab = ref('biodata');
+const deletedDocumentIds = ref(new Set<number>());
+const visibleDocuments = computed(() =>
+    (props.student?.documents ?? []).filter(
+        (document) => !deletedDocumentIds.value.has(document.id),
+    ),
+);
+
+watch(
+    () => props.student?.id,
+    () => {
+        deletedDocumentIds.value = new Set();
+    },
+    { immediate: true },
+);
 
 // Form State
 const form = useForm({
@@ -238,6 +252,14 @@ form.education_histories[index].certificate = file;
 };
 
 const isEducationCertificateFile = (file: unknown): file is File => file instanceof File;
+const openStudentFilePreview = (url: string, title: string, mimeType = '') => {
+    educationFilePreview.value = {
+        url,
+        title,
+        isPdf: mimeType.toLowerCase().includes('pdf') || /\.pdf(?:$|\?)/i.test(url),
+    };
+};
+
 const openEducationCertificatePreview = (certificate: unknown, historyId?: number) => {
     let url: string;
     let mimeType = '';
@@ -252,11 +274,7 @@ const openEducationCertificatePreview = (certificate: unknown, historyId?: numbe
         return;
     }
 
-    educationFilePreview.value = {
-        url,
-        title: 'Ijazah / dokumen pendidikan',
-        isPdf: mimeType.includes('pdf'),
-    };
+    openStudentFilePreview(url, 'Ijazah / dokumen pendidikan', mimeType);
 };
 
 const closeEducationCertificatePreview = () => {
@@ -267,10 +285,23 @@ URL.revokeObjectURL(educationFilePreview.value.url);
     educationFilePreview.value = null;
 };
 
+const handleEducationPreviewEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && educationFilePreview.value) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeEducationCertificatePreview();
+    }
+};
+
+onMounted(() => window.addEventListener('keydown', handleEducationPreviewEscape, true));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleEducationPreviewEscape, true));
+
 const preventDialogDismissDuringCertificatePreview = (event: Event) => {
-    if (educationFilePreview.value) {
-event.preventDefault();
+    if (!educationFilePreview.value) {
+return;
 }
+
+    event.preventDefault();
 };
 
 const createImage = (src: string) =>
@@ -428,13 +459,20 @@ const documentPreviewUrl = (documentId: number) =>
           })
         : '#';
 
+const documentDownloadUrl = (documentId: number) =>
+    props.student
+        ? downloadDocument.url({ student: props.student.id, document: documentId })
+        : '#';
+
+const storedFileName = (path: string) => path.split(/[\\/]/).pop() || path;
+
 // Warning & Duplication Check: Cek apakah jenis dokumen yang dipilih sudah pernah diunggah
 const isDocumentTypeExists = computed(() => {
-    if (!form.document_type_id || !props.student?.documents) {
+    if (!form.document_type_id) {
         return false;
     }
 
-    return props.student.documents.some(
+    return visibleDocuments.value.some(
         (doc) =>
             parseNullableId(doc.document_type_id) ===
             parseNullableId(form.document_type_id),
@@ -655,6 +693,25 @@ const removeEducation = (index: number) => {
     form.education_histories.splice(index, 1);
 };
 
+const deleteEducationCertificate = (index: number) => {
+    const history = form.education_histories[index];
+
+    if (!history?.id || typeof history.certificate !== 'string' || !confirm('Yakin ingin menghapus sertifikat ini?')) {
+return;
+}
+
+    router.delete(`/student-education-histories/${history.id}/certificate`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const current = form.education_histories.find((item) => item.id === history.id);
+
+            if (current) {
+current.certificate = null;
+}
+        },
+    });
+};
+
 const addSocial = () => {
     form.socials.push({
         social_platform_id: null,
@@ -682,6 +739,25 @@ const addAchievement = () => {
 
 const removeAchievement = (index: number) => {
     form.achievements.splice(index, 1);
+};
+
+const deleteAchievementCertificate = (index: number) => {
+    const achievement = form.achievements[index];
+
+    if (!achievement?.id || typeof achievement.certificate !== 'string' || !confirm('Yakin ingin menghapus sertifikat ini?')) {
+return;
+}
+
+    router.delete(`/student-achievements/${achievement.id}/certificate`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const current = form.achievements.find((item) => item.id === achievement.id);
+
+            if (current) {
+current.certificate = null;
+}
+        },
+    });
 };
 
 const handleCertificateFileChange = (event: Event, index: number) => {
@@ -753,7 +829,10 @@ const deleteDocument = (documentId: number) => {
         {
             preserveScroll: true,
             onSuccess: () => {
-                // Berhasil dihapus
+                deletedDocumentIds.value = new Set([
+                    ...deletedDocumentIds.value,
+                    documentId,
+                ]);
             },
         },
     );
@@ -2158,16 +2237,14 @@ const handleSubmit = async () => {
                                 class="text-sm"
                                 @change="(event: Event) => handleEducationCertificateChange(event, index)"
                             />
-                            <Button
-                                v-if="isEducationCertificateFile(edu.certificate) || (typeof edu.certificate === 'string' && edu.certificate)"
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                class="h-8 text-xs"
-                                @click="openEducationCertificatePreview(edu.certificate, edu.id)"
-                            >
-                                <Eye class="mr-1 h-3.5 w-3.5" />
-                                {{ isEducationCertificateFile(edu.certificate) ? 'Lihat berkas terpilih' : 'Lihat berkas tersimpan' }}
+                            <div v-if="typeof edu.certificate === 'string' && edu.certificate && edu.id" class="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                                <span class="mr-1">Sertifikat tersimpan: {{ storedFileName(edu.certificate) }}</span>
+                                <Button type="button" variant="outline" size="sm" class="h-8 text-xs" @click="openEducationCertificatePreview(edu.certificate, edu.id)"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button>
+                                <a :href="`/student-education-histories/${edu.id}/certificate/download`" class="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"><Download class="mr-1 h-3.5 w-3.5" /> Unduh</a>
+                                <Button type="button" variant="destructive" size="sm" class="h-8 text-xs" @click="deleteEducationCertificate(index)"><Trash2 class="mr-1 h-3.5 w-3.5" /> Hapus</Button>
+                            </div>
+                            <Button v-else-if="isEducationCertificateFile(edu.certificate)" type="button" variant="outline" size="sm" class="h-8 text-xs" @click="openEducationCertificatePreview(edu.certificate, edu.id)">
+                                <Eye class="mr-1 h-3.5 w-3.5" /> Lihat berkas terpilih
                             </Button>
                         </div>
                     </div>
@@ -2341,7 +2418,10 @@ const handleSubmit = async () => {
                             />
                             <!-- Menampilkan info sertifikat tersimpan jika ada -->
                             <p v-if="typeof ach.certificate === 'string' && ach.certificate" class="text-xs text-neutral-500">
-                                Sertifikat tersimpan: <span class="font-mono">{{ ach.certificate }}</span>
+                                Sertifikat tersimpan: <span class="font-mono">{{ storedFileName(ach.certificate) }}</span>
+                                        <Button type="button" variant="outline" size="sm" class="ml-2 h-7 text-[11px]" @click="openStudentFilePreview(`/storage/${ach.certificate}`, 'Sertifikat prestasi')"><Eye class="mr-1 h-3 w-3" /> Preview</Button>
+                                        <a :href="`/storage/${ach.certificate}`" download class="ml-2 inline-flex h-7 items-center rounded-md border px-2 text-[11px] font-medium"><Download class="mr-1 h-3 w-3" /> Unduh</a>
+                                <Button v-if="ach.id" type="button" variant="destructive" size="sm" class="ml-2 h-7 text-[11px]" @click="deleteAchievementCertificate(index)">Hapus sertifikat</Button>
                             </p>
                         </div>
                     </div>
@@ -2495,8 +2575,7 @@ const handleSubmit = async () => {
 
                     <div
                         v-if="
-                            props.student?.documents &&
-                            props.student.documents.length > 0
+                            visibleDocuments.length > 0
                         "
                         class="space-y-2"
                     >
@@ -2506,7 +2585,7 @@ const handleSubmit = async () => {
                             Dokumen Tersimpan
                         </h4>
                         <div
-                            v-for="doc in props.student.documents"
+                            v-for="doc in visibleDocuments"
                             :key="doc.id"
                             class="flex items-center justify-between rounded-lg border p-3 text-xs dark:border-neutral-800"
                         >
@@ -2517,13 +2596,8 @@ const handleSubmit = async () => {
                                 'Dokumen Siswa'
                             }}</span>
                             <div class="flex items-center gap-3">
-                                <a
-                                    :href="documentPreviewUrl(doc.id)"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    class="text-blue-600 underline"
-                                    >Lihat / Unduh</a
-                                >
+                                <Button type="button" variant="link" class="h-auto p-0 text-blue-600 underline" @click="openStudentFilePreview(documentPreviewUrl(doc.id), doc.original_name || doc.stored_name || doc.file_name || 'Dokumen Siswa', doc.mime_type || '')">Pratinjau</Button>
+                                <a :href="documentDownloadUrl(doc.id)" class="text-blue-600 underline">Unduh</a>
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -2559,22 +2633,18 @@ const handleSubmit = async () => {
         </DialogFooter>
             </form>
         </DialogContent>
-        <div
-            v-if="educationFilePreview"
-            class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-            @click.self="closeEducationCertificatePreview"
-            @keydown.esc="closeEducationCertificatePreview"
-        >
-            <section class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-modal="true" :aria-label="educationFilePreview.title">
-                <header class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
-                    <h2 class="truncate text-sm font-semibold">{{ educationFilePreview.title }}</h2>
-                    <button type="button" class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau" @click="closeEducationCertificatePreview"><X class="h-4 w-4" /></button>
-                </header>
-                <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-100 p-3 dark:bg-neutral-950">
-                    <iframe v-if="educationFilePreview.isPdf" :src="educationFilePreview.url" class="h-[78vh] w-full rounded-lg bg-white" :title="educationFilePreview.title" />
-                    <img v-else :src="educationFilePreview.url" :alt="educationFilePreview.title" class="max-h-[78vh] max-w-full rounded-lg object-contain" />
-                </div>
-            </section>
-        </div>
+    </Dialog>
+
+    <Dialog :open="Boolean(educationFilePreview)" @update:open="(open) => !open && closeEducationCertificatePreview()">
+        <DialogContent :show-close-button="false" class="flex h-[70vh] max-h-[70vh] w-[80vw] max-w-5xl flex-col overflow-hidden p-0 sm:max-w-5xl" @keydown.esc.stop.prevent="closeEducationCertificatePreview">
+            <DialogHeader class="flex-row items-center justify-between gap-4 border-b px-4 py-3">
+                <DialogTitle class="truncate text-sm">{{ educationFilePreview?.title || 'Pratinjau berkas' }}</DialogTitle>
+                <button type="button" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau" @click="closeEducationCertificatePreview">Esc</button>
+            </DialogHeader>
+            <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-neutral-100 p-2 dark:bg-neutral-950" @click.self="closeEducationCertificatePreview">
+                <iframe v-if="educationFilePreview?.isPdf" :src="educationFilePreview.url" class="h-full w-full rounded-lg bg-white" :title="educationFilePreview.title" />
+                <img v-else-if="educationFilePreview" :src="educationFilePreview.url" :alt="educationFilePreview.title" class="max-h-full max-w-full rounded-lg object-contain" @click.stop />
+            </div>
+        </DialogContent>
     </Dialog>
 </template>

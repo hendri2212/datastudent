@@ -37,8 +37,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/students/{student}', [StudentController::class, 'update']);
     Route::get('/students/{student}/photo', [StudentController::class, 'photo'])->name('students.photo');
     Route::get('/students/{student}/documents/{document}/preview', [StudentDocumentController::class, 'preview'])->name('students.documents.preview');
+    Route::delete('/students/{student}/documents/{document}', [StudentDocumentController::class, 'destroy'])->name('students.documents.destroy');
+    Route::get('/students/{student}/documents/{document}/download', [StudentDocumentController::class, 'download'])->name('students.documents.download');
     Route::get('/student-education-histories/{studentEducationHistory}/certificate', [StudentEducationHistoryController::class, 'preview'])->name('student-education-histories.certificate');
     Route::get('/student-education-histories/{studentEducationHistory}/certificate/download', [StudentEducationHistoryController::class, 'download'])->name('student-education-histories.certificate.download');
+    Route::delete('/student-education-histories/{studentEducationHistory}/certificate', [StudentEducationHistoryController::class, 'destroyCertificate'])->name('student-education-histories.certificate.destroy');
+    Route::delete('/student-achievements/{achievement}/certificate', [StudentAchievementController::class, 'destroyCertificate'])->name('student-achievements.certificate.destroy');
 });
 
 // 2. ROUTE APLIKASI UTAMA (MEMBUTUHKAN AUTHENTICATION)
@@ -92,9 +96,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/student-socials/{studentSocial}', [StudentSocialController::class, 'destroy'])->name('student-socials.destroy');
 
         // Dokumen Siswa
-        Route::get('/students/{student}/documents/{document}/download', [StudentDocumentController::class, 'download'])->name('students.documents.download');
         Route::post('/students/{student}/documents/{document}/verify', [StudentDocumentController::class, 'verify'])->middleware('can:verify-students')->name('students.documents.verify');
-        Route::delete('/students/{student}/documents/{document}', [StudentDocumentController::class, 'destroy'])->name('students.documents.destroy');
         Route::post('/students/{student}/documents', [StudentDocumentController::class, 'store']);
 
         // Data Kesehatan Siswa

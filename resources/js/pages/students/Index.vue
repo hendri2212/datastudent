@@ -133,6 +133,7 @@ const isFilterModalOpen = ref(false);
 const isFormModalOpen = ref(false);
 const isDeleteModalOpen = ref(false);
 const isDetailModalOpen = ref(false);
+const previewItem = ref<{ url: string; title: string; isPdf: boolean } | null>(null);
 
 const selectedStudent = ref<Student | null>(null);
 const selectedStudentIds = ref<number[]>([]);
@@ -684,6 +685,30 @@ const getEducationCertificatePreviewUrl = (history: StudentEducationHistory) =>
 
 const getEducationCertificateDownloadUrl = (history: StudentEducationHistory) =>
     history.id ? `/student-education-histories/${history.id}/certificate/download` : '#';
+
+const getFileDisplayName = (value: string | Blob | File | null | undefined): string => {
+    if (!value) {
+        return '-';
+    }
+
+    if (typeof value === 'string') {
+        return value.split(/[\\/]/).pop() || value;
+    }
+
+    if ('name' in value && typeof value.name === 'string') {
+        return value.name;
+    }
+
+    return String(value);
+};
+
+const openFilePreview = (url: string, title: string, mimeType = '') => {
+    previewItem.value = {
+        url,
+        title,
+        isPdf: mimeType.toLowerCase().includes('pdf') || /\.pdf(?:$|\?)/i.test(url),
+    };
+};
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const shareDocument = async (doc: StudentDocument) => {
@@ -2215,15 +2240,14 @@ const shareDocument = async (doc: StudentDocument) => {
                                 >
                             </div>
                             <div v-if="edu.certificate" class="mt-3 flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
-                                <span class="mr-auto text-[11px] text-neutral-500">Ijazah / dokumen kelulusan</span>
-                                <a
-                                    :href="getEducationCertificatePreviewUrl(edu)"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <span class="mr-auto text-[11px] text-neutral-500">Ijazah / dokumen kelulusan: {{ edu.certificate.split(/[\\/]/).pop() }}</span>
+                                <button
+                                    type="button"
                                     class="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                    @click="openFilePreview(getEducationCertificatePreviewUrl(edu), 'Ijazah / dokumen kelulusan', edu.certificate?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/*')"
                                 >
                                     <Eye class="mr-1.5 h-3.5 w-3.5" /> Preview
-                                </a>
+                                </button>
                                 <a
                                     :href="getEducationCertificateDownloadUrl(edu)"
                                     class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
@@ -2338,15 +2362,14 @@ const shareDocument = async (doc: StudentDocument) => {
 
                             <!-- Tambahan: Tautan Lihat/Unduh Sertifikat -->
                             <div v-if="ach.certificate" class="mt-2 border-t pt-2 dark:border-neutral-800">
-                                <a
-                                    :href="`/storage/${ach.certificate}`"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <button
+                                    type="button"
                                     class="inline-flex items-center gap-1.5 font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 hover:underline text-[11px]"
+                                    @click="openFilePreview(`/storage/${ach.certificate}`, 'Sertifikat / Piagam')"
                                 >
                                     <FileText class="h-3.5 w-3.5" />
-                                    <span>Lihat Sertifikat / Piagam</span>
-                                </a>
+                                    <span>Sertifikat / Piagam: {{ getFileDisplayName(ach.certificate) }}</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -2437,11 +2460,11 @@ const shareDocument = async (doc: StudentDocument) => {
                                 </div>
                             </div>
                             <div class="flex items-center gap-2">
-                                <a
-                                    :href="getDocumentPreviewUrl(doc)"
-                                    target="_blank"
+                                <button
+                                    type="button"
                                     class="rounded-md border px-3 py-1 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                    >Pratinjau</a
+                                    @click="openFilePreview(getDocumentPreviewUrl(doc), doc.original_name || doc.stored_name || 'Dokumen siswa', doc.mime_type || '')"
+                                    >Pratinjau</button
                                 >
                                 <a
                                     :href="getDocumentDownloadUrl(doc)"
@@ -2518,6 +2541,19 @@ const shareDocument = async (doc: StudentDocument) => {
                     <span>Ya, Hapus Data</span>
                 </Button>
             </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog :open="Boolean(previewItem)" @update:open="(open) => !open && (previewItem = null)">
+        <DialogContent :show-close-button="false" class="flex h-[70vh] max-h-[70vh] w-[80vw] max-w-5xl flex-col overflow-hidden p-0 sm:max-w-5xl" @keydown.esc.stop.prevent="previewItem = null">
+            <DialogHeader class="flex-row items-center justify-between border-b px-4 py-3">
+                <DialogTitle class="truncate text-sm">{{ previewItem?.title || 'Pratinjau berkas' }}</DialogTitle>
+                <Button type="button" variant="ghost" size="sm" class="px-3 text-xs font-semibold" aria-label="Tutup pratinjau (Esc)" @click="previewItem = null">Esc</Button>
+            </DialogHeader>
+            <div class="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-neutral-100 p-2 dark:bg-neutral-950">
+                <iframe v-if="previewItem?.isPdf" :src="previewItem.url" class="h-full w-full rounded-lg bg-white" :title="previewItem.title" />
+                <img v-else-if="previewItem" :src="previewItem.url" :alt="previewItem.title" class="h-full w-full rounded-lg object-contain" />
+            </div>
         </DialogContent>
     </Dialog>
 </template>

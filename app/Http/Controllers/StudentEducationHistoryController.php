@@ -36,6 +36,18 @@ class StudentEducationHistoryController extends Controller
         );
     }
 
+    public function destroyCertificate(Request $request, StudentEducationHistory $studentEducationHistory): RedirectResponse
+    {
+        $this->authorizeCertificateAccess($request, $studentEducationHistory);
+
+        if ($studentEducationHistory->certificate) {
+            Storage::disk('local')->delete($studentEducationHistory->certificate);
+            $studentEducationHistory->update(['certificate' => null]);
+        }
+
+        return back()->with('success', 'Sertifikat berhasil dihapus.');
+    }
+
     private function authorizeCertificateAccess(Request $request, StudentEducationHistory $studentEducationHistory): void
     {
         $student = $studentEducationHistory->student;

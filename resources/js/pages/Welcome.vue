@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Eye, LogOut, Pencil, UserRound, X } from 'lucide-vue-next';
+import { Check, Copy, Download, Eye, LogOut, Pencil, UserRound } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import type {
@@ -9,7 +9,7 @@ import type {
 } from '@/pages/students/types';
 import WelcomeFormDialog from '@/pages/WelcomeFormDialog.vue';
 import { logout } from '@/routes';
-import { preview as previewDocument } from '@/routes/students/documents';
+import { download as downloadDocument, preview as previewDocument } from '@/routes/students/documents';
 
 const props = defineProps<{
     student: Student | null;
@@ -34,12 +34,51 @@ const props = defineProps<{
 const page = usePage();
 const dialogOpen = ref(false);
 const previewItem = ref<{ url: string; title: string; pdf: boolean } | null>(null);
+const copiedField = ref<string | null>(null);
 const authUser = computed(() => (page.props as any).auth?.user);
 const isStudentUser = computed(() => ['student', 'siswa'].includes(authUser.value?.role));
 const canUpdate = computed(() => !isStudentUser.value || !props.student?.verified_at);
 const student = computed(() => props.student);
 
 const value = (value?: string | number | null) => value === null || value === undefined || value === '' ? '—' : value;
+const copyableFields = new Set([
+    'Nama lengkap', 'Nama panggilan', 'NISN', 'NIS', 'Telepon', 'Email', 'Alamat', 'Kode pos',
+    'Nama ayah', 'Telepon ayah', 'Nama ibu', 'Telepon ibu', 'Nama wali', 'Telepon wali',
+    'Kontak darurat', 'Telepon darurat', 'Hubungan kontak darurat',
+]);
+const isCopyableField = (label: unknown): label is string => typeof label === 'string' && copyableFields.has(label);
+const copyField = async (rawValue: unknown, label: string) => {
+    if (rawValue === null || rawValue === undefined || String(rawValue) === '') {
+return;
+}
+
+    const text = String(rawValue);
+
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        textarea.remove();
+
+        if (!copied) {
+return;
+}
+    }
+
+    copiedField.value = label;
+    window.setTimeout(() => {
+        if (copiedField.value === label) {
+copiedField.value = null;
+}
+    }, 1800);
+};
+const storedFileName = (path: string) => path.split(/[\\/]/).pop() || path;
 const date = (value?: string | null) => value ? new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
 const openPreview = (url: string, title: string, mime = '') => {
     previewItem.value = { url, title, pdf: mime.toLowerCase().includes('pdf') || /\.pdf(?:$|\?)/i.test(url) };
@@ -92,16 +131,31 @@ return [];
                     <dl class="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
                         <div v-for="item in section.items" :key="String(item[0])" class="min-w-0">
                             <dt class="text-xs text-neutral-500">{{ item[0] }}</dt>
-                            <dd class="mt-1 break-words text-sm font-medium">{{ value(item[1] as string | number | null) }}</dd>
+                            <dd v-if="isCopyableField(item[0])" class="mt-1 flex min-w-0 items-start gap-2 text-sm font-medium">
+                                <span class="min-w-0 break-words whitespace-pre-line">{{ value(item[1] as string | number | null) }}</span>
+                                <button
+                                    v-if="item[1] !== null && item[1] !== undefined && item[1] !== ''"
+                                    type="button"
+                                    class="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
+                                    :aria-label="`${copiedField === item[0] ? 'Tersalin' : 'Salin'} ${item[0]}`"
+                                    :title="copiedField === item[0] ? 'Tersalin' : `Salin ${item[0]}`"
+                                    @click="copyField(item[1], item[0])"
+                                >
+                                    <Check v-if="copiedField === item[0]" class="h-3.5 w-3.5" />
+                                    <Copy v-else class="h-3.5 w-3.5" />
+                                    {{ copiedField === item[0] ? 'Tersalin' : 'Salin' }}
+                                </button>
+                            </dd>
+                            <dd v-else class="mt-1 break-words text-sm font-medium">{{ value(item[1] as string | number | null) }}</dd>
                         </div>
                     </dl>
                 </section>
                 <section v-if="student.education_histories?.length" class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
                     <h2 class="mb-4 text-sm font-bold uppercase tracking-wide">Riwayat Pendidikan</h2>
                     <div v-for="history in student.education_histories" :key="history.id" class="space-y-3 border-t border-neutral-100 py-4 first:border-0 dark:border-neutral-800">
-                        <div class="flex items-center justify-between gap-3">
-                            <div><p class="text-sm font-semibold">{{ history.school_name }}</p><p class="text-xs text-neutral-500">{{ history.education_level?.name || 'Jenjang tidak diisi' }} · {{ history.is_graduated ? 'Lulus' : 'Belum lulus' }}</p></div>
-                            <Button v-if="history.certificate && typeof history.id === 'number'" type="button" variant="outline" size="sm" class="shrink-0" @click="openPreview(`/student-education-histories/${history.id}/certificate`, 'Ijazah / dokumen pendidikan', history.certificate.endsWith('.pdf') ? 'application/pdf' : 'image/*')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button>
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0 flex-1"><p class="break-words text-sm font-semibold">{{ history.school_name }}</p><p class="break-words text-xs text-neutral-500">{{ history.education_level?.name || 'Jenjang tidak diisi' }} · {{ history.is_graduated ? 'Lulus' : 'Belum lulus' }}<span v-if="history.certificate"> · Sertifikat: <span class="break-all">{{ storedFileName(history.certificate) }}</span></span></p></div>
+                            <div v-if="history.certificate && typeof history.id === 'number'" class="flex shrink-0 gap-2"><Button type="button" variant="outline" size="sm" @click="openPreview(`/student-education-histories/${history.id}/certificate`, 'Ijazah / dokumen pendidikan', history.certificate.endsWith('.pdf') ? 'application/pdf' : 'image/*')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button><a :href="`/student-education-histories/${history.id}/certificate/download`" class="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium"><Download class="mr-1 h-3.5 w-3.5" /> Unduh</a></div>
                         </div>
                         <dl class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                             <div><dt class="text-xs text-neutral-500">Tahun masuk</dt><dd class="mt-1 font-medium">{{ value(history.entry_year) }}</dd></div>
@@ -116,8 +170,21 @@ return [];
                 <section v-if="student.documents?.length" class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
                     <h2 class="mb-4 text-sm font-bold uppercase tracking-wide">Dokumen</h2>
                     <div v-for="doc in student.documents" :key="doc.id" class="flex items-center justify-between gap-3 border-t border-neutral-100 py-3 dark:border-neutral-800">
-                        <div class="min-w-0"><p class="truncate text-sm font-medium">{{ doc.notes || doc.original_name || doc.file_name || 'Dokumen' }}</p><p class="mt-0.5 truncate text-xs text-neutral-500">{{ doc.document_type?.name || 'Dokumen' }}<span v-if="doc.notes && (doc.original_name || doc.file_name)"> · {{ doc.original_name || doc.file_name }}</span></p></div>
-                        <Button type="button" variant="outline" size="sm" class="shrink-0" @click="openPreview(previewDocument.url({ student: student.id, document: doc.id }), doc.notes || doc.original_name || doc.file_name || 'Dokumen siswa', doc.mime_type || '')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button>
+                        <div class="flex min-w-0 items-start gap-1.5">
+                            <div class="min-w-0"><p class="truncate text-sm font-medium">{{ doc.notes || doc.original_name || doc.file_name || 'Dokumen' }}</p><p class="mt-0.5 truncate text-xs text-neutral-500">{{ doc.document_type?.name || 'Dokumen' }}<span v-if="doc.notes && (doc.original_name || doc.file_name)"> · {{ doc.original_name || doc.file_name }}</span></p></div>
+                            <button
+                                type="button"
+                                class="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-[11px] font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
+                                :aria-label="copiedField === `document-${doc.id}` ? 'Nama dokumen tersalin' : 'Salin nama dokumen'"
+                                :title="copiedField === `document-${doc.id}` ? 'Tersalin' : 'Salin nama dokumen'"
+                                @click="copyField(doc.notes || doc.original_name || doc.file_name || 'Dokumen', `document-${doc.id}`)"
+                            >
+                                <Check v-if="copiedField === `document-${doc.id}`" class="h-3.5 w-3.5" />
+                                <Copy v-else class="h-3.5 w-3.5" />
+                                {{ copiedField === `document-${doc.id}` ? 'Tersalin' : 'Salin' }}
+                            </button>
+                        </div>
+                        <div class="flex shrink-0 gap-2"><Button type="button" variant="outline" size="sm" @click="openPreview(previewDocument.url({ student: student.id, document: doc.id }), doc.notes || doc.original_name || doc.file_name || 'Dokumen siswa', doc.mime_type || '')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button><a :href="downloadDocument.url({ student: student.id, document: doc.id })" class="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium"><Download class="mr-1 h-3.5 w-3.5" /> Unduh</a></div>
                     </div>
                 </section>
                 <section v-if="student.socials?.length" class="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
@@ -129,7 +196,7 @@ return [];
                     <div v-for="achievement in student.achievements" :key="achievement.id" class="border-t border-neutral-100 py-3 dark:border-neutral-800">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0"><p class="text-sm font-semibold">{{ achievement.title }}</p><p class="mt-1 text-xs text-neutral-500">{{ achievement.organizer || '—' }} · {{ achievement.category || '—' }} · {{ achievement.level || '—' }}</p><p class="mt-1 text-xs text-neutral-500">Peringkat {{ value(achievement.rank) }} · {{ date(achievement.achievement_date) }}</p><p v-if="achievement.description" class="mt-2 whitespace-pre-line text-sm text-neutral-700 dark:text-neutral-300">{{ achievement.description }}</p></div>
-                            <Button v-if="typeof achievement.certificate === 'string' && achievement.certificate" type="button" variant="outline" size="sm" class="shrink-0" @click="openPreview(`/storage/${achievement.certificate}`, 'Sertifikat prestasi')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button>
+                            <div v-if="typeof achievement.certificate === 'string' && achievement.certificate" class="flex shrink-0 gap-2"><Button type="button" variant="outline" size="sm" @click="openPreview(`/storage/${achievement.certificate}`, 'Sertifikat prestasi')"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button><a :href="`/storage/${achievement.certificate}`" download class="inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium"><Download class="mr-1 h-3.5 w-3.5" /> Unduh</a></div>
                         </div>
                     </div>
                 </section>
@@ -160,7 +227,7 @@ return [];
         <section class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-modal="true" :aria-label="previewItem.title">
             <header class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
                 <h2 class="truncate text-sm font-semibold">{{ previewItem.title }}</h2>
-                <button type="button" class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau" @click="previewItem = null"><X class="h-4 w-4" /></button>
+                <button type="button" class="rounded-lg border px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau (Esc)" @click="previewItem = null">Esc</button>
             </header>
             <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-100 p-3 dark:bg-neutral-950">
                 <iframe v-if="previewItem.pdf" :src="previewItem.url" class="h-[78vh] w-full rounded-lg bg-white" :title="previewItem.title" />

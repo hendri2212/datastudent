@@ -19,9 +19,9 @@ import {
     Crop,
     Sparkles,
     Eye,
-    X,
+    Download,
 } from 'lucide-vue-next';
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,7 +45,7 @@ import {
     store as storeStudent,
     update as updateStudent,
 } from '@/routes/students';
-import { destroy as destroyDocument, preview as previewDocument } from '@/routes/students/documents';
+import { destroy as destroyDocument, download as downloadDocument, preview as previewDocument } from '@/routes/students/documents';
 
 // Import Types
 
@@ -83,6 +83,12 @@ const isStudentUser = computed(() => {
     return role === 'student' || role === 'siswa';
 });
 const isStudentVerified = computed(() => Boolean(props.student?.verified_at));
+const deletedDocumentIds = ref(new Set<number>());
+const visibleDocuments = computed(() =>
+    (props.student?.documents ?? []).filter(
+        (document) => !deletedDocumentIds.value.has(document.id),
+    ),
+);
 const isReadOnlyForStudent = computed(() => isStudentUser.value && isStudentVerified.value);
 
 // Wizard Steps Configuration
@@ -415,6 +421,13 @@ const documentPreviewUrl = (documentId: number) =>
           })
         : '#';
 
+const documentDownloadUrl = (documentId: number) =>
+    props.student
+        ? downloadDocument.url({ student: props.student.id, document: documentId })
+        : '#';
+
+const storedFileName = (path: string) => path.split(/[\\/]/).pop() || path;
+
 const openFilePreview = (url: string, title: string, mimeType = '') => {
     filePreview.value = {
         url,
@@ -434,6 +447,17 @@ const closeFilePreview = () => {
 
     filePreview.value = null;
 };
+
+const handleFilePreviewEscape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && filePreview.value) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeFilePreview();
+    }
+};
+
+onMounted(() => window.addEventListener('keydown', handleFilePreviewEscape, true));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleFilePreviewEscape, true));
 
 const isDocumentTypeExists = computed(() => {
     if (!studentForm.document_type_id || !props.student?.documents) {
@@ -480,10 +504,17 @@ const handleMajorChange = () => {
 
 // Watcher Sync
 watch(
+    () => props.student?.id,
+    () => {
+        deletedDocumentIds.value = new Set();
+        currentStepIndex.value = 0;
+    },
+    { immediate: true },
+);
+
+watch(
     () => props.student,
     (newStudent) => {
-        currentStepIndex.value = 0;
-
         if (newStudent) {
             photoCacheBuster.value = Date.now();
             studentForm.reset();
@@ -600,6 +631,24 @@ const addEducation = () => {
     });
 };
 const removeEducation = (index: number) => studentForm.education_histories.splice(index, 1);
+const deleteEducationCertificate = (index: number) => {
+    const history = studentForm.education_histories[index];
+
+    if (!history?.id || typeof history.certificate !== 'string' || !confirm('Yakin ingin menghapus sertifikat ini?')) {
+return;
+}
+
+    router.delete(`/student-education-histories/${history.id}/certificate`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const current = studentForm.education_histories.find((item) => item.id === history.id);
+
+            if (current) {
+current.certificate = null;
+}
+        },
+    });
+};
 const handleEducationCertificateChange = (event: Event, index: number) => {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
 
@@ -634,6 +683,24 @@ const addAchievement = () => {
     });
 };
 const removeAchievement = (index: number) => studentForm.achievements.splice(index, 1);
+const deleteAchievementCertificate = (index: number) => {
+    const achievement = studentForm.achievements[index];
+
+    if (!achievement?.id || typeof achievement.certificate !== 'string' || !confirm('Yakin ingin menghapus sertifikat ini?')) {
+return;
+}
+
+    router.delete(`/student-achievements/${achievement.id}/certificate`, {
+        preserveScroll: true,
+        onSuccess: () => {
+            const current = studentForm.achievements.find((item) => item.id === achievement.id);
+
+            if (current) {
+current.certificate = null;
+}
+        },
+    });
+};
 
 const handleCertificateFileChange = (event: Event, index: number) => {
     const file = (event.target as HTMLInputElement).files?.[0] ?? null;
@@ -692,7 +759,15 @@ return;
             student: props.student.id,
             document: documentId,
         }),
-        { preserveScroll: true }
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                deletedDocumentIds.value = new Set([
+                    ...deletedDocumentIds.value,
+                    documentId,
+                ]);
+            },
+        }
     );
 };
 
@@ -1304,8 +1379,14 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                 <div class="sm:col-span-3">
                                     <label :class="labelClass">Foto / PDF Ijazah atau Dokumen Kelulusan (maks. 5MB)</label>
                                     <Input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" :class="inputClass" @change="(event: Event) => handleEducationCertificateChange(event, idx)" />
-                                    <Button v-if="isEducationCertificateFile(edu.certificate) || (typeof edu.certificate === 'string' && edu.certificate)" type="button" variant="outline" size="sm" class="mt-2 h-8 text-xs" @click="previewEducationCertificate(edu.certificate, edu.id)">
-                                        <Eye class="mr-1 h-3.5 w-3.5" /> {{ isEducationCertificateFile(edu.certificate) ? 'Lihat berkas terpilih' : 'Lihat berkas tersimpan' }}
+                                    <div v-if="typeof edu.certificate === 'string' && edu.certificate && edu.id" class="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                                        <span class="mr-1">Sertifikat tersimpan: {{ storedFileName(edu.certificate) }}</span>
+                                        <Button type="button" variant="outline" size="sm" class="h-8 text-xs" @click="previewEducationCertificate(edu.certificate, edu.id)"><Eye class="mr-1 h-3.5 w-3.5" /> Preview</Button>
+                                        <a :href="`/student-education-histories/${edu.id}/certificate/download`" class="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium"><Download class="mr-1 h-3.5 w-3.5" /> Unduh</a>
+                                        <Button type="button" variant="destructive" size="sm" class="h-8 text-xs" @click="deleteEducationCertificate(idx)"><Trash2 class="mr-1 h-3.5 w-3.5" /> Hapus</Button>
+                                    </div>
+                                    <Button v-else-if="isEducationCertificateFile(edu.certificate)" type="button" variant="outline" size="sm" class="mt-2 h-8 text-xs" @click="previewEducationCertificate(edu.certificate, edu.id)">
+                                        <Eye class="mr-1 h-3.5 w-3.5" /> Lihat berkas terpilih
                                     </Button>
                                 </div>
                             </div>
@@ -1430,8 +1511,10 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                     
                                     <!-- Status Sertifikat Tersimpan (Edit Mode) -->
                                     <div v-if="typeof ach.certificate === 'string' && ach.certificate" class="mt-2 flex items-center gap-2 text-xs text-neutral-500">
-                                        <span>Sertifikat tersimpan</span>
+                                        <span>Sertifikat tersimpan: {{ storedFileName(ach.certificate) }}</span>
                                         <Button type="button" variant="outline" size="sm" class="h-7 text-[11px]" @click="openFilePreview(`/storage/${ach.certificate}`, 'Sertifikat prestasi')"><Eye class="mr-1 h-3 w-3" /> Lihat</Button>
+                                        <a :href="`/storage/${ach.certificate}`" download class="inline-flex h-7 items-center rounded-md border px-2 text-[11px] font-medium"><Download class="mr-1 h-3 w-3" /> Unduh</a>
+                                        <Button v-if="ach.id" type="button" variant="destructive" size="sm" class="h-7 text-[11px]" @click="deleteAchievementCertificate(idx)">Hapus sertifikat</Button>
                                     </div>
                                     
                                     <!-- Error Message dari Inertia -->
@@ -1525,10 +1608,10 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                             </p>
                         </div>
 
-                        <div v-if="props.student?.documents && props.student.documents.length > 0" class="space-y-3 pt-2">
+                        <div v-if="visibleDocuments.length > 0" class="space-y-3 pt-2">
                             <h3 class="text-xs font-bold uppercase text-neutral-400">Dokumen Tersimpan</h3>
                             <div class="divide-y divide-neutral-100 rounded-xl border border-neutral-200/80 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
-                                <div v-for="doc in props.student.documents" :key="doc.id" class="flex items-center justify-between p-3.5">
+                                <div v-for="doc in visibleDocuments" :key="doc.id" class="flex items-center justify-between p-3.5">
                                     <div class="flex items-center gap-3">
                                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
                                             <FileText class="h-4 w-4" />
@@ -1542,6 +1625,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
                                         <button type="button" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11px] font-medium text-neutral-600 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" @click="openFilePreview(documentPreviewUrl(doc.id), doc.notes || doc.original_name || doc.file_name || 'Dokumen siswa', doc.mime_type || '')">
                                             Pratinjau
                                         </button>
+                                        <a :href="documentDownloadUrl(doc.id)" class="rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-blue-700"><Download class="mr-1 inline h-3 w-3" /> Unduh</a>
                                         <button type="button" class="p-1.5 text-neutral-400 hover:text-red-500 transition-colors" @click="deleteDocument(doc.id)">
                                             <Trash2 class="h-4 w-4" />
                                         </button>
@@ -1578,7 +1662,7 @@ const labelClass = 'text-[11px] font-semibold text-neutral-600 dark:text-neutral
             <section class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900" role="dialog" aria-modal="true" :aria-label="filePreview.title">
                 <header class="flex items-center justify-between gap-4 border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
                     <h2 class="truncate text-sm font-semibold">{{ filePreview.title }}</h2>
-                    <button type="button" class="rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white" aria-label="Tutup pratinjau" @click="closeFilePreview"><X class="h-4 w-4" /></button>
+                    <button type="button" class="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800" aria-label="Tutup pratinjau (Esc)" @click="closeFilePreview">Esc</button>
                 </header>
                 <div class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-100 p-3 dark:bg-neutral-950">
                     <iframe v-if="filePreview.isPdf" :src="filePreview.url" class="h-[78vh] w-full rounded-lg bg-white" :title="filePreview.title" />
