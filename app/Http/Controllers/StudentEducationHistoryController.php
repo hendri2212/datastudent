@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Storage;
 
 class StudentEducationHistoryController extends Controller
 {
+    public function __construct(private readonly \App\Services\CompressedUploadStorage $uploads) {}
+
     public function preview(Request $request, StudentEducationHistory $studentEducationHistory): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeCertificateAccess($request, $studentEducationHistory);
@@ -82,7 +84,7 @@ class StudentEducationHistoryController extends Controller
         unset($validated['certificate']);
         $history = $student->educationHistories()->create($validated);
         if ($certificate) {
-            $history->update(['certificate' => $certificate->store("education_certificates/{$student->id}", 'local')]);
+            $history->update(['certificate' => $this->uploads->store($certificate, "education_certificates/{$student->id}", 'local')]);
         }
 
         return back()->with('success', 'Riwayat pendidikan berhasil ditambahkan.');
@@ -113,7 +115,7 @@ class StudentEducationHistoryController extends Controller
             if ($studentEducationHistory->certificate && Storage::disk('local')->exists($studentEducationHistory->certificate)) {
                 Storage::disk('local')->delete($studentEducationHistory->certificate);
             }
-            $studentEducationHistory->update(['certificate' => $certificate->store("education_certificates/{$studentEducationHistory->student_id}", 'local')]);
+            $studentEducationHistory->update(['certificate' => $this->uploads->store($certificate, "education_certificates/{$studentEducationHistory->student_id}", 'local')]);
         }
 
         return back()->with('success', 'Riwayat pendidikan berhasil diperbarui.');

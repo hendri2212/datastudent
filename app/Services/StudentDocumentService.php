@@ -11,6 +11,8 @@ use Throwable;
 
 class StudentDocumentService
 {
+    public function __construct(private readonly CompressedUploadStorage $uploads) {}
+
     public function upload(
         Student $student,
         int $documentTypeId,
@@ -19,11 +21,7 @@ class StudentDocumentService
         ?int $uploadedBy,
         string $disk = 'public',
     ): StudentDocument {
-        $newPath = $file->store("student_documents/{$student->id}", $disk);
-
-        if ($newPath === false) {
-            throw new \RuntimeException('Gagal menyimpan berkas dokumen.');
-        }
+        $newPath = $this->uploads->store($file, "student_documents/{$student->id}", $disk);
 
         $oldPath = null;
         $oldDisk = null;
@@ -57,15 +55,16 @@ class StudentDocumentService
                     ]);
                 }
 
+                $storedPath = Storage::disk($disk)->path($newPath);
                 $document->fill([
                     'original_name' => $file->getClientOriginalName(),
                     'stored_name' => basename($newPath),
                     'file_path' => $newPath,
                     'disk' => $disk,
-                    'mime_type' => $file->getClientMimeType(),
-                    'file_size' => $file->getSize(),
-                    'extension' => strtolower($file->getClientOriginalExtension()),
-                    'checksum' => hash_file('sha256', $file->getRealPath()),
+                    'mime_type' => Storage::disk($disk)->mimeType($newPath) ?: $file->getClientMimeType(),
+                    'file_size' => filesize($storedPath),
+                    'extension' => strtolower(pathinfo($newPath, PATHINFO_EXTENSION)),
+                    'checksum' => hash_file('sha256', $storedPath),
                     'uploaded_by' => $uploadedBy,
                     'notes' => $notes,
                     'is_verified' => false,

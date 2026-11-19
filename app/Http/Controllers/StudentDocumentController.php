@@ -67,7 +67,11 @@ class StudentDocumentController extends Controller
 
         $fullPath = Storage::disk($disk)->path($document->file_path);
 
-        return response()->download($fullPath, $document->original_name);
+        $downloadName = $document->mime_type === 'image/webp'
+            ? pathinfo($document->original_name, PATHINFO_FILENAME).'.webp'
+            : $document->original_name;
+
+        return response()->download($fullPath, $downloadName);
     }
 
     /**

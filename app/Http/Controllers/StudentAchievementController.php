@@ -12,6 +12,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class StudentAchievementController extends Controller
 {
+    public function __construct(private readonly \App\Services\CompressedUploadStorage $uploads) {}
+
     public function store(Request $request, Student $student): RedirectResponse
     {
         $validated = $request->validate([
@@ -26,7 +28,7 @@ class StudentAchievementController extends Controller
         ]);
 
         if ($request->hasFile('certificate')) {
-            $validated['certificate'] = $request->file('certificate')->store('certificates', 'public');
+            $validated['certificate'] = $this->uploads->store($request->file('certificate'), 'certificates', 'public');
         }
 
         $student->achievements()->create($validated);
@@ -53,7 +55,7 @@ class StudentAchievementController extends Controller
                 Storage::disk('public')->delete($achievement->certificate);
             }
 
-            $validated['certificate'] = $request->file('certificate')->store('certificates', 'public');
+            $validated['certificate'] = $this->uploads->store($request->file('certificate'), 'certificates', 'public');
         }
 
         $achievement->update($validated);

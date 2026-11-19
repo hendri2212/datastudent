@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class StudentService
 {
+    public function __construct(private readonly CompressedUploadStorage $uploads) {}
+
     /** @param array<string, mixed> $data */
     public function create(array $data, ?int $actorId): Student
     {
@@ -320,7 +322,7 @@ class StudentService
                     if ($record->certificate && Storage::disk('local')->exists($record->certificate)) {
                         Storage::disk('local')->delete($record->certificate);
                     }
-                    $record->update(['certificate' => $certificate->store("education_certificates/{$student->id}", 'local')]);
+                    $record->update(['certificate' => $this->uploads->store($certificate, "education_certificates/{$student->id}", 'local')]);
                 }
 
                 $kept[] = $record->id;
@@ -391,6 +393,7 @@ class StudentService
         $kept = [];
         foreach ($data['achievements'] ?? [] as $item) {
             $id = $item['id'] ?? null;
+            $certificate = $item['certificate'] ?? null;
 
             if (! empty($id)) {
                 /** @var StudentAchievement|null $record */
@@ -403,11 +406,19 @@ class StudentService
             }
 
             if ($record instanceof StudentAchievement) {
-                $record->fill(Arr::except($item, ['id']));
+                $record->fill(Arr::except($item, ['id', 'certificate']));
                 if ($record->trashed()) {
                     $record->restore();
                 }
                 $record->save();
+
+                if ($certificate instanceof \Illuminate\Http\UploadedFile && $certificate->isValid()) {
+                    if ($record->certificate && Storage::disk('public')->exists($record->certificate)) {
+                        Storage::disk('public')->delete($record->certificate);
+                    }
+                    $record->update(['certificate' => $this->uploads->store($certificate, "certificates/{$student->id}", 'public')]);
+                }
+
                 $kept[] = $record->id;
             }
         }

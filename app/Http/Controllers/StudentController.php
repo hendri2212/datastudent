@@ -473,43 +473,7 @@ class StudentController extends Controller
             }
         }
 
-        // 2. Handle certificate uploads for achievements
-        /** @var array<int, array<string, \Illuminate\Http\UploadedFile|mixed>>|null $achievementsInput */
-        $achievementsInput = $request->file('achievements');
-        if (is_array($achievementsInput)) {
-            $existingAchievements = $student->achievements()->get();
-
-            foreach ($achievementsInput as $index => $achievementFileGroup) {
-                if (
-                    is_array($achievementFileGroup) &&
-                    isset($achievementFileGroup['certificate']) &&
-                    $achievementFileGroup['certificate'] instanceof \Illuminate\Http\UploadedFile &&
-                    $achievementFileGroup['certificate']->isValid()
-                ) {
-                    /** @var \Illuminate\Http\UploadedFile $file */
-                    $file = $achievementFileGroup['certificate'];
-                    $achievementId = $data['achievements'][$index]['id'] ?? null;
-
-                    $achievement = null;
-
-                    if ($achievementId) {
-                        $achievement = $existingAchievements->firstWhere('id', $achievementId);
-                    } else {
-                        $achievement = $existingAchievements->get($index);
-                    }
-
-                    if ($achievement) {
-                        if ($achievement->certificate && Storage::disk('public')->exists($achievement->certificate)) {
-                            Storage::disk('public')->delete($achievement->certificate);
-                        }
-                        $path = $file->store("certificates/{$student->id}", 'public');
-                        $achievement->update(['certificate' => $path]);
-                    }
-                }
-            }
-        }
-
-        // 3. Handle document upload
+        // 2. Handle document upload
         $file = $request->file('new_document_file');
         if ($file === null) {
             return;
